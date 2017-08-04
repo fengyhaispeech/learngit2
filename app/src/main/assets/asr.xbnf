@@ -1,0 +1,8 @@
+
+$GLOBAL_CMD =  (打开空调) /domain="other"/;
+
+
+#合并所有说法
+$SEMANTIC_OUTPUT =($GLOBAL_CMD);
+
+( \<s\> ($SEMANTIC_OUTPUT) \<\/s\> )
