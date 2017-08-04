@@ -44,6 +44,18 @@ import java.util.Random;
 
 public class SpeechService extends Service implements MPOnCompletionListener {
 
+    /*1、需要一个service在后台等待
+
+    2、service启动时 检验授权 没有授权则执行授权
+
+    3. 授权后初始化本地唤醒引擎、本地语音合成引擎和云端对话引擎等
+
+    4. 通过唤醒词唤醒，唤醒后首先播放提示语，然后开始云端对话（播放返回的对话内容、播放音乐、控制机器人运动等）
+
+    5. 如果超过设定的时间，停止云端对话引擎，进入休眠（需要唤醒词重新唤醒 开始对话和控制）
+
+    6. 在机器人息屏后，开始等待唤醒，唤醒后点亮屏幕，开始云端对话（再执行上面的流程）*/
+
     private String TAG = "SpeechService";
     private boolean isDebugLog = BuildConfig.DEBUG_LOG;
 
@@ -52,10 +64,14 @@ public class SpeechService extends Service implements MPOnCompletionListener {
      */
     private String CN_PREVIEW = "";
     private String HELP_TIP = "有什么我可以帮您？";
+    private String SDS_ERRO_TIP = "我不明白你的意思";
+    private String MP_COMPLET = "播放完成";
 
     private MyHandler mHandler;
     private boolean isInited = false;
     private boolean isAuthed = false;
+    private boolean isScreenOFF = false;
+    private boolean isUsedMediaPlayer = false;
     private ScreenReceiver mScreenReceiver;
     private PowerManager.WakeLock wakeLock = null;
 
@@ -63,7 +79,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private AILocalWakeupDnnEngine mAiLocalWakeupDnnEngine;
     private AILocalTTSEngine mAiLocalTTSEngine;
     private AICloudSdsEngine mAiCloudSdsEngine;
-//    private CircularFifoQueue<byte[]> mFifoQueue = null;
+    private RobotMediaPlayer mRobotMediaPlayer;
+    //    private CircularFifoQueue<byte[]> mFifoQueue = null;
 
     @Override
     public void onCreate() {
@@ -107,14 +124,17 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             String action = intent.getAction();
             if (action.equals(Intent.ACTION_SCREEN_OFF)) {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕关闭...");
-
+                isScreenOFF = true;
                 if (isAuthed) {
-                    if (isDebugLog) Log.i(TAG, "已经获取了授权（息屏后监测判断）,等待唤醒...");
+                    if (isDebugLog) Log.e(TAG, "已经获取了授权（息屏后监测判断）,等待唤醒...");
+                    mAiLocalTTSEngine.stop();//暂停播放语音和云端对话
+                    mAiCloudSdsEngine.stopRecording();
                     mAiLocalWakeupDnnEngine.start();//息屏后判断如果已经获取了授权，就开始等待唤醒
                 }
 
             } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕点亮,释放wakelock...");
+                isScreenOFF = false;
                 releaseWakeLock();
             }
         }
@@ -156,14 +176,14 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
         //判断是否取得授权，如果取得直接准备唤醒，如果没有等待授权成功后准备唤醒
         if (mAiAuthEngine.isAuthed()) {
-            if (isDebugLog) Log.i(TAG, "已经获得授权...");
+            if (isDebugLog) Log.e(TAG, "已经获得授权...初始化三个引擎");
             isAuthed = true;
-            waitForWakeUp();
-//            initmAiCloudSdsEngine();
-//            initAILocalTTSEngine();
+            initWakeupDnnEngine();
+            initAILocalTTSEngine();
+            initmAiCloudSdsEngine();
 
         } else {
-            if (isDebugLog) Log.i(TAG, "还没有获得授权...");
+            if (isDebugLog) Log.e(TAG, "还没有获得授权...");
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -180,21 +200,23 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     class RobotAIAuthListener implements AIAuthListener {
         @Override
         public void onAuthSuccess() {
-            if (isDebugLog) Log.i(TAG, "授权成功...");
+            if (isDebugLog) Log.e(TAG, "授权成功...初始化三个引擎");
             isAuthed = true;
-            //waitForWakeUp();
+            initWakeupDnnEngine();
+            initAILocalTTSEngine();
+            initmAiCloudSdsEngine();
         }
 
         @Override
         public void onAuthFailed(String s) {
-            if (isDebugLog) Log.i(TAG, "授权失败...");
+            if (isDebugLog) Log.e(TAG, "授权失败...");
         }
     }
 
     /**
-     * 初始化唤醒
+     * 初始化唤醒引擎
      */
-    private void waitForWakeUp() {
+    private void initWakeupDnnEngine() {
         mAiLocalWakeupDnnEngine = AILocalWakeupDnnEngine.createInstance();
         mAiLocalWakeupDnnEngine.setResBin(SampleConstants.wake_up_res);
         mAiLocalWakeupDnnEngine.init(new RobotAILocalWakeupDnnListener());
@@ -210,54 +232,60 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         @Override
         public void onInit(int status) {
             if (status == AIConstant.OPT_SUCCESS) {
-                if (isDebugLog) Log.i(TAG, "唤醒引擎初始化成功...开始等待唤醒...");
-//                mAiLocalWakeupDnnEngine.start();
+                if (isDebugLog) Log.e(TAG, "唤醒引擎初始化成功...开始等待唤醒...");
+                mAiLocalWakeupDnnEngine.start();
 
             } else {
                 if (isDebugLog) Log.e(TAG, "唤醒引擎初始化 失败...");
-
+                mAiLocalWakeupDnnEngine.init(new RobotAILocalWakeupDnnListener());
             }
         }
 
         @Override
         public void onError(AIError aiError) {
             if (isDebugLog) Log.e(TAG, "唤醒回调显示失败...");
+            mAiLocalWakeupDnnEngine.start();
         }
 
         @Override
         public void onWakeup(String s, double v, String s1) {
             if (isDebugLog) Log.e(TAG, "唤醒成功...");
-            //点亮屏幕
-            acquireWakeLock();
+            if (isScreenOFF) {
+                //点亮屏幕
+                acquireWakeLock();
+            }
+            //播放提示语
+            CN_PREVIEW = HELP_TIP;
+            speakTips();
         }
 
         @Override
         public void onRmsChanged(float v) {
-            if (isDebugLog) Log.i(TAG, "onRmsChanged rmsDb = " + v);
+            if (isDebugLog) Log.i(TAG, "唤醒引擎 onRmsChanged rmsDb = " + v);
 
         }
 
         @Override
         public void onRecorderReleased() {
-            if (isDebugLog) Log.i(TAG, "onRecorderReleased...");
+            if (isDebugLog) Log.e(TAG, "唤醒引擎 onRecorderReleased...");
 
         }
 
         @Override
         public void onReadyForSpeech() {
-            if (isDebugLog) Log.i(TAG, "可以开始说话了...");
+            if (isDebugLog) Log.e(TAG, "唤醒引擎 可以开始说话了...");
 
         }
 
         @Override
         public void onBufferReceived(byte[] bytes) {
-            if (isDebugLog) Log.i(TAG, "onBufferReceived bytes...");
+            if (isDebugLog) Log.i(TAG, "唤醒引擎 onBufferReceived bytes...");
 
         }
 
         @Override
         public void onWakeupEngineStopped() {
-            mAiLocalWakeupDnnEngine.start();
+//            mAiLocalWakeupDnnEngine.start();
         }
     }
 
@@ -303,47 +331,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     }
 
     /**
-     * 本地合成语音引擎监听
-     */
-    class RobotAITTSListener implements AITTSListener {
-        @Override
-        public void onInit(int status) {
-            if (isDebugLog) Log.i(TAG, "RobotAITTSListener初始化完成，返回值：" + status);
-            if (status == AIConstant.OPT_SUCCESS) {
-                if (isDebugLog) Log.i(TAG, "RobotAITTSListener初始化成功...");
-//                speakTips();
-                initmAiCloudSdsEngine();
-
-            } else {
-                if (isDebugLog) Log.e(TAG, "RobotAITTSListener初始化失败...");
-
-            }
-        }
-
-        @Override
-        public void onError(String s, AIError aiError) {
-            if (isDebugLog) Log.i(TAG, "RobotAITTSListener onError...");
-        }
-
-        @Override
-        public void onReady(String s) {
-            if (isDebugLog) Log.i(TAG, "RobotAITTSListener onReady...");
-        }
-
-        @Override
-        public void onCompletion(String s) {
-            if (isDebugLog) Log.i(TAG, "RobotAITTSListener onCompletion = " + s);
-            mAiCloudSdsEngine.startWithRecording();
-        }
-
-        @Override
-        public void onProgress(int i, int i1, boolean b) {
-            if (isDebugLog)
-                Log.i(TAG, "RobotAITTSListener onProgress i = " + i + ", i1 = " + i1 + ", b = " + b);
-        }
-    }
-
-    /**
      * 使用本地合成语音播放提示语
      */
     private void speakTips() {
@@ -356,6 +343,53 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     }
 
     /**
+     * 本地合成语音引擎监听
+     */
+    class RobotAITTSListener implements AITTSListener {
+        @Override
+        public void onInit(int status) {
+            if (isDebugLog) Log.e(TAG, "RobotAITTSListener初始化完成，返回值：" + status);
+            if (status == AIConstant.OPT_SUCCESS) {
+                if (isDebugLog) Log.e(TAG, "RobotAITTSListener初始化成功...");
+//                speakTips();
+//                initmAiCloudSdsEngine();
+
+            } else {
+                if (isDebugLog) Log.e(TAG, "RobotAITTSListener初始化失败...");
+                mAiLocalTTSEngine.init(new RobotAITTSListener());//初始化合成引擎
+            }
+        }
+
+        @Override
+        public void onError(String s, AIError aiError) {
+            if (isDebugLog) Log.e(TAG, "RobotAITTSListener onError...");
+            mAiCloudSdsEngine.startWithRecording();
+        }
+
+        @Override
+        public void onReady(String s) {
+            if (isDebugLog) Log.e(TAG, "RobotAITTSListener onReady...");
+        }
+
+        @Override
+        public void onCompletion(String s) {
+            if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion = " + s);
+            if (isUsedMediaPlayer) {
+                if (isDebugLog)
+                    Log.e(TAG, "RobotAITTSListener onCompletion isUsedMediaPlayer = true");
+            } else {
+                mAiCloudSdsEngine.startWithRecording();
+            }
+        }
+
+        @Override
+        public void onProgress(int i, int i1, boolean b) {
+            if (isDebugLog)
+                Log.i(TAG, "RobotAITTSListener onProgress i = " + i + ", i1 = " + i1 + ", b = " + b);
+        }
+    }
+
+    /**
      * 初始化云端对话引擎
      */
     private void initmAiCloudSdsEngine() {
@@ -364,7 +398,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAiCloudSdsEngine.setServer("ws://s-test.api.aispeech.com:10000");
         mAiCloudSdsEngine.setVadResource(SampleConstants.vad_res);
 //        mAiCloudSdsEngine.setUserId("AISPEECH"); //填公司名字
-        mAiCloudSdsEngine.setServerConnectTimeout(5);
+//        mAiCloudSdsEngine.setServerConnectTimeout(5);
         mAiCloudSdsEngine.init(new RobotAISdsListener());
     }
 
@@ -374,10 +408,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     class RobotAISdsListener implements AISdsListener {
         @Override
         public void onInit(int staus) {
-            if (isDebugLog) Log.i(TAG, "mAiCloudSdsEngine onIinit staus = " + staus);
+            if (isDebugLog) Log.e(TAG, "mAiCloudSdsEngine onIinit staus = " + staus);
             if (staus == AIConstant.OPT_SUCCESS) {
-                if (isDebugLog) Log.i(TAG, "mAiCloudSdsEngine 初始化成功");
-                mAiCloudSdsEngine.startWithRecording();
+                if (isDebugLog) Log.e(TAG, "mAiCloudSdsEngine 初始化成功");
+//                mAiCloudSdsEngine.startWithRecording();
             } else {
                 if (isDebugLog) Log.e(TAG, "mAiCloudSdsEngine 初始话失败");
 
@@ -387,7 +421,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         @Override
         public void onError(AIError aiError) {
             if (isDebugLog) Log.e(TAG, "RobotAISdsListener onError = " + aiError.toString());
-            mAiCloudSdsEngine.startWithRecording();//重新等待语音
+            CN_PREVIEW = SDS_ERRO_TIP;
+            speakTips();
+//            mAiCloudSdsEngine.startWithRecording();//重新等待语音
         }
 
         @Override
@@ -395,7 +431,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (aiResult.isLast()) {
                 if (aiResult.getResultType() == AIConstant.AIENGINE_MESSAGE_TYPE_JSON) {
                     if (isDebugLog)
-                        Log.i(TAG, "result JSON = " + aiResult.getResultObject().toString());
+                        Log.e(TAG, "result JSON = " + aiResult.getResultObject().toString());
                     parseData(aiResult);
                 }
             }
@@ -403,27 +439,27 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
         @Override
         public void onRmsChanged(float v) {
-            if (isDebugLog) Log.i(TAG, "RobotAISdsListener onRmsChanged = " + v);
+            if (isDebugLog) Log.e(TAG, "RobotAISdsListener onRmsChanged = " + v);
         }
 
         @Override
         public void onReadyForSpeech() {
-            if (isDebugLog) Log.i(TAG, "RobotAISdsListener 可以开始说话了");
+            if (isDebugLog) Log.e(TAG, "RobotAISdsListener 可以开始说话了");
         }
 
         @Override
         public void onBeginningOfSpeech() {
-            if (isDebugLog) Log.i(TAG, "RobotAISdsListener 检测到说话了");
+            if (isDebugLog) Log.e(TAG, "RobotAISdsListener 检测到说话了");
         }
 
         @Override
         public void onEndOfSpeech() {
-            if (isDebugLog) Log.i(TAG, "RobotAISdsListener 检测到语音停止，开始识别");
+            if (isDebugLog) Log.e(TAG, "RobotAISdsListener 检测到语音停止，开始识别");
         }
 
         @Override
         public void onRecorderReleased() {
-            if (isDebugLog) Log.i(TAG, "RobotAISdsListener onRecorderReleased...");
+            if (isDebugLog) Log.e(TAG, "RobotAISdsListener onRecorderReleased...");
         }
 
         @Override
@@ -433,10 +469,15 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
         @Override
         public void onNotOneShot() {
-            if (isDebugLog) Log.i(TAG, "RobotAISdsListener onNotOneShot...");
+            if (isDebugLog) Log.e(TAG, "RobotAISdsListener onNotOneShot...");
         }
     }
 
+    /**
+     * 解析网络返回的数据
+     *
+     * @param aiResult
+     */
     private void parseData(AIResult aiResult) {
         JSONResultParser parser = new JSONResultParser(aiResult.getResultObject().toString());
         JSONObject result = parser.getResult();
@@ -447,23 +488,27 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isDebugLog) Log.e(TAG, "解析json， domain 是空...");
                 return;
             }
-            if (domain.equals("netfm") || domain.equals("story")) {
+            if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
                 JSONObject dataJsonObj = sdsJsonObj.getJSONObject("data");
                 if (dataJsonObj == null) {
                     if (isDebugLog) Log.e(TAG, "domain = netfm，data == null");
                     return;
                 }
                 String output = sdsJsonObj.getString("output");
-                if (!TextUtils.isEmpty(output)) {
-//                    CN_PREVIEW = output;
-//                    speakTips();
-                }
                 JSONArray dbdataJsArray = dataJsonObj.getJSONArray("dbdata");
                 if (dbdataJsArray != null && dbdataJsArray.length() > 0) {
+                    if (!TextUtils.isEmpty(output)) {
+                        isUsedMediaPlayer = true;
+                        CN_PREVIEW = output;
+                        speakTips();
+                    }
                     //随机播放网络资源
                     Random mRandom = new Random();
                     int randomInt = mRandom.nextInt(dbdataJsArray.length());
                     JSONObject netfmData = dbdataJsArray.getJSONObject(randomInt);
+                    if (isDebugLog)
+                        Log.e(TAG, "randomInt = " + randomInt + ",dbdataJsArray.length() = " + dbdataJsArray.length());
+//                    JSONObject netfmData = dbdataJsArray.getJSONObject(0);
                     String url = netfmData.getString("playUrl32");
                     if (TextUtils.isEmpty(url)) {
                         if (isDebugLog) Log.e(TAG, "playUrl32 isEmpty...");
@@ -471,30 +516,39 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         if (TextUtils.isEmpty(url)) {
                             if (isDebugLog) Log.e(TAG, "playUrl64 isEmpty...");
                             //没有音乐文件
-
+                            isUsedMediaPlayer = false;
+                            mAiCloudSdsEngine.startWithRecording();
                         } else {
-                            if (isDebugLog) Log.i(TAG, "开始播放音乐...");
-                            RobotMediaPlayer mediaPlayer = new RobotMediaPlayer();
-                            mediaPlayer.setOnCompletionListener(this);
-                            mediaPlayer.playUrl(url);
+                            if (isDebugLog) Log.e(TAG, "开始播放音乐...");
+                            isUsedMediaPlayer = true;
+                            mRobotMediaPlayer = new RobotMediaPlayer();
+                            mRobotMediaPlayer.setOnCompletionListener(this);
+                            mRobotMediaPlayer.playUrl(url);
                         }
                     } else {
-                        if (isDebugLog) Log.i(TAG, "开始播放音乐...");
-                        RobotMediaPlayer mediaPlayer = new RobotMediaPlayer();
-                        mediaPlayer.setOnCompletionListener(this);
-                        mediaPlayer.playUrl(url);
+                        if (isDebugLog) Log.e(TAG, "开始播放音乐...");
+                        isUsedMediaPlayer = true;
+                        mRobotMediaPlayer = new RobotMediaPlayer();
+                        mRobotMediaPlayer.setOnCompletionListener(this);
+                        mRobotMediaPlayer.playUrl(url);
                     }
+                } else {
+                    isUsedMediaPlayer = false;
+                    mAiCloudSdsEngine.startWithRecording();
                 }
-            } else if (domain.equals("chat") || domain.equals("weather")) {
+            } else if (domain.equals("chat") || domain.equals("weather") || domain.equals("calendar") || domain.equals("calculator")) {
                 if (isDebugLog) Log.e(TAG, "domain 是 chat 或 weather，domain = " + domain);
                 String outPut = sdsJsonObj.getString("output");
                 if (!TextUtils.isEmpty(outPut)) {
+                    //使用本地合成语音播放返回的内容
                     CN_PREVIEW = outPut;
-//                    initAILocalTTSEngine();//使用本地合成语音播放返回的内容
                     speakTips();
                 } else {
                     if (isDebugLog) Log.e(TAG, "获取到的返回语音为空");
+                    mAiCloudSdsEngine.startWithRecording();
                 }
+            } else if (domain.equals("motionctrl")) {//运动控制
+
             } else {
                 if (isDebugLog) Log.e(TAG, "domain 是其他的，domain = " + domain);
                 mAiCloudSdsEngine.startWithRecording();
@@ -507,8 +561,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     @Override
     public void onCompletionListener() {
         //在音乐播放完成时重新开始对话
-        if (isDebugLog) Log.i(TAG, "音乐播放完成, 重新开始对话...");
-        mAiCloudSdsEngine.startWithRecording();
+        if (isDebugLog) Log.e(TAG, "音乐播放完成, 重新开始对话...");
+        isUsedMediaPlayer = false;
+        CN_PREVIEW = MP_COMPLET;
+        speakTips();
+//        mAiCloudSdsEngine.startWithRecording();
     }
 
     @Override
