@@ -30,9 +30,9 @@ import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.utils.MPOnCompletionListener;
 import com.yihengke.robotspeech.utils.RobotMediaPlayer;
 import com.yihengke.robotspeech.utils.SampleConstants;
+import com.yihengke.robotspeech.utils.WriteDataUtils;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.FileNotFoundException;
@@ -59,6 +59,12 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private String TAG = "SpeechService";
     private boolean isDebugLog = BuildConfig.DEBUG_LOG;
 
+    private static int MOTOR_LEFT = 0;
+    private static int MOTOR_RIGHT = 1;
+    private static int MOTOR_FORWARD = 2;
+    private static int MOTOR_BACK = 3;
+    private static int MOTOR_STOP = 4;
+
     /**
      * 要读出的话
      */
@@ -66,12 +72,14 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private String HELP_TIP = "有什么我可以帮您？";
     private String SDS_ERRO_TIP = "我不明白你的意思";
     private String MP_COMPLET = "播放完成";
+    private String GO_TO_SLEEP = "我要去休息了";
 
     private MyHandler mHandler;
     private boolean isInited = false;
     private boolean isAuthed = false;
     private boolean isScreenOFF = false;
     private boolean isUsedMediaPlayer = false;
+    private boolean isGoSleeping = false;
     private ScreenReceiver mScreenReceiver;
     private PowerManager.WakeLock wakeLock = null;
 
@@ -146,10 +154,18 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             super.handleMessage(msg);
             switch (msg.what) {
                 case 0:
-
+                    if (isDebugLog) Log.e(TAG, "超时没有接收到语音，进入休眠,等待唤醒...");
+                    isGoSleeping = true;
+                    CN_PREVIEW = GO_TO_SLEEP;
+                    speakTips();
+                    mAiLocalTTSEngine.stop();//暂停播放语音和云端对话
+                    mAiCloudSdsEngine.stopRecording();
+                    mAiLocalWakeupDnnEngine.start();//息屏后判断如果已经获取了授权，就开始等待唤醒
                     break;
                 case 1:
-
+                    int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
+                    if (isDebugLog) Log.e(TAG, "Handler 检测运动超时，MOTOR_STOP 的返回值是: " + callback);
+//                    mAiCloudSdsEngine.startWithRecording();
                     break;
             }
         }
@@ -254,6 +270,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 //点亮屏幕
                 acquireWakeLock();
             }
+            isGoSleeping = false;
             //播放提示语
             CN_PREVIEW = HELP_TIP;
             speakTips();
@@ -377,6 +394,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (isUsedMediaPlayer) {
                 if (isDebugLog)
                     Log.e(TAG, "RobotAITTSListener onCompletion isUsedMediaPlayer = true");
+            } else if (isGoSleeping) {
+                if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isGoSleeping = true");
             } else {
                 mAiCloudSdsEngine.startWithRecording();
             }
@@ -445,6 +464,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         @Override
         public void onReadyForSpeech() {
             if (isDebugLog) Log.e(TAG, "RobotAISdsListener 可以开始说话了");
+            /* 在这里进行等待处理，如果在指定时间内没有接收到语音，
+            停止本地合成引擎和云端对话引擎，开启休眠等待关键词唤醒模式 */
+            mHandler.sendEmptyMessageDelayed(0, 60 * 1000);
         }
 
         @Override
@@ -455,6 +477,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         @Override
         public void onEndOfSpeech() {
             if (isDebugLog) Log.e(TAG, "RobotAISdsListener 检测到语音停止，开始识别");
+            /* 读取到语音进来，remove掉之前发的延时消息，重置进入休眠的时间 */
+            mHandler.removeMessages(0);
         }
 
         @Override
@@ -482,20 +506,20 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         JSONResultParser parser = new JSONResultParser(aiResult.getResultObject().toString());
         JSONObject result = parser.getResult();
         try {
-            JSONObject sdsJsonObj = result.getJSONObject("sds");
-            String domain = sdsJsonObj.getString("domain");
+            JSONObject sdsJsonObj = result.optJSONObject("sds");
+            String domain = sdsJsonObj.optString("domain");
             if (TextUtils.isEmpty(domain)) {
                 if (isDebugLog) Log.e(TAG, "解析json， domain 是空...");
                 return;
             }
             if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
-                JSONObject dataJsonObj = sdsJsonObj.getJSONObject("data");
+                JSONObject dataJsonObj = sdsJsonObj.optJSONObject("data");
                 if (dataJsonObj == null) {
                     if (isDebugLog) Log.e(TAG, "domain = netfm，data == null");
                     return;
                 }
-                String output = sdsJsonObj.getString("output");
-                JSONArray dbdataJsArray = dataJsonObj.getJSONArray("dbdata");
+                String output = sdsJsonObj.optString("output");
+                JSONArray dbdataJsArray = dataJsonObj.optJSONArray("dbdata");
                 if (dbdataJsArray != null && dbdataJsArray.length() > 0) {
                     if (!TextUtils.isEmpty(output)) {
                         isUsedMediaPlayer = true;
@@ -505,19 +529,29 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     //随机播放网络资源
                     Random mRandom = new Random();
                     int randomInt = mRandom.nextInt(dbdataJsArray.length());
-                    JSONObject netfmData = dbdataJsArray.getJSONObject(randomInt);
+                    JSONObject netfmData = dbdataJsArray.optJSONObject(randomInt);
                     if (isDebugLog)
                         Log.e(TAG, "randomInt = " + randomInt + ",dbdataJsArray.length() = " + dbdataJsArray.length());
-//                    JSONObject netfmData = dbdataJsArray.getJSONObject(0);
-                    String url = netfmData.getString("playUrl32");
+//                    JSONObject netfmData = dbdataJsArray.optJSONObject(0);
+                    String url = netfmData.optString("playUrl32");
                     if (TextUtils.isEmpty(url)) {
                         if (isDebugLog) Log.e(TAG, "playUrl32 isEmpty...");
-                        url = netfmData.getString("playUrl64");
+                        url = netfmData.optString("playUrl64");
                         if (TextUtils.isEmpty(url)) {
                             if (isDebugLog) Log.e(TAG, "playUrl64 isEmpty...");
-                            //没有音乐文件
-                            isUsedMediaPlayer = false;
-                            mAiCloudSdsEngine.startWithRecording();
+                            url = netfmData.optString("url");
+                            if (TextUtils.isEmpty(url)) {
+                                if (isDebugLog) Log.e(TAG, "获取 url isEmpty...");
+                                //没有音乐文件
+                                isUsedMediaPlayer = false;
+                                mAiCloudSdsEngine.startWithRecording();
+                            } else {
+                                if (isDebugLog) Log.e(TAG, "开始播放音乐...");
+                                isUsedMediaPlayer = true;
+                                mRobotMediaPlayer = new RobotMediaPlayer();
+                                mRobotMediaPlayer.setOnCompletionListener(this);
+                                mRobotMediaPlayer.playUrl(url);
+                            }
                         } else {
                             if (isDebugLog) Log.e(TAG, "开始播放音乐...");
                             isUsedMediaPlayer = true;
@@ -538,7 +572,17 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 }
             } else if (domain.equals("chat") || domain.equals("weather") || domain.equals("calendar") || domain.equals("calculator")) {
                 if (isDebugLog) Log.e(TAG, "domain 是 chat 或 weather，domain = " + domain);
-                String outPut = sdsJsonObj.getString("output");
+                String outPut = sdsJsonObj.optString("output");
+                if (domain.equals("chat")) {
+                    String input = result.optString("input");
+                    if (input.contains("向前") || input.contains("向后") || input.contains("往前") || input.contains("往后")
+                            || input.contains("向左") || input.contains("向右") || input.contains("往左") || input.contains("往右")) {
+                        controlRobot(outPut);
+                        if (isDebugLog)
+                            Log.e(TAG, "domain.equals(\"chat\"), input.contains 方向\n" + input);
+                        return;
+                    }
+                }
                 if (!TextUtils.isEmpty(outPut)) {
                     //使用本地合成语音播放返回的内容
                     CN_PREVIEW = outPut;
@@ -548,12 +592,18 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     mAiCloudSdsEngine.startWithRecording();
                 }
             } else if (domain.equals("motionctrl")) {//运动控制
-
+                if (isDebugLog) Log.e(TAG, "domain 运动控制，domain = " + domain);
+//                mAiCloudSdsEngine.startWithRecording();
+                controlRobot(result.optString("input"));
+            } else if (domain.equals("command")) {//中控
+                if (isDebugLog) Log.e(TAG, "domain 中控，domain = " + domain);
+                controlRobot(result.optString("input"));
+//                mAiCloudSdsEngine.startWithRecording();
             } else {
                 if (isDebugLog) Log.e(TAG, "domain 是其他的，domain = " + domain);
                 mAiCloudSdsEngine.startWithRecording();
             }
-        } catch (JSONException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -566,6 +616,41 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         CN_PREVIEW = MP_COMPLET;
         speakTips();
 //        mAiCloudSdsEngine.startWithRecording();
+    }
+
+    private void controlRobot(String ctrl_str) {
+        if (ctrl_str.contains("左")) {
+            int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_LEFT, 0);
+            if (isDebugLog) Log.e(TAG, "MOTOR_LEFT 的返回值是: " + callback);
+
+            mHandler.removeMessages(1);
+            mHandler.sendEmptyMessageDelayed(1, 5 * 1000);
+        } else if (ctrl_str.contains("右")) {
+            int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_RIGHT, 0);
+            if (isDebugLog) Log.e(TAG, "MOTOR_RIGHT 的返回值是: " + callback);
+
+            mHandler.removeMessages(1);
+            mHandler.sendEmptyMessageDelayed(1, 5 * 1000);
+        } else if (ctrl_str.contains("前")) {
+            int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_FORWARD, 0);
+            if (isDebugLog) Log.e(TAG, "MOTOR_FORWARD 的返回值是: " + callback);
+
+            mHandler.removeMessages(1);
+            mHandler.sendEmptyMessageDelayed(1, 5 * 1000);
+        } else if (ctrl_str.contains("后")) {
+            int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_BACK, 0);
+            if (isDebugLog) Log.e(TAG, "MOTOR_BACK 的返回值是: " + callback);
+
+            mHandler.removeMessages(1);
+            mHandler.sendEmptyMessageDelayed(1, 5 * 1000);
+        } else if (ctrl_str.contains("停")) {
+            int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
+            if (isDebugLog) Log.e(TAG, "MOTOR_STOP 的返回值是: " + callback);
+
+            mHandler.removeMessages(1);
+//            mHandler.sendEmptyMessageDelayed(1, 5 * 1000);
+        }
+        mAiCloudSdsEngine.startWithRecording();
     }
 
     @Override

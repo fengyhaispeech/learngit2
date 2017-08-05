@@ -6,10 +6,20 @@
     tools:context="com.yihengke.robotspeech.activity.MainActivity">
 
     <Button
+        android:id="@+id/btn_one"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
-        android:onClick="btnStart"
-        android:text="Hello World!" />
+        android:onClick="btnStartOne"
+        android:text="蓝精灵" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/btn_one"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp"
+        android:onClick="btnStartTwo"
+        android:text="外婆的澎湖湾" />
 
 </RelativeLayout>
