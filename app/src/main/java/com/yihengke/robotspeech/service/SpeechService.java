@@ -5,6 +5,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.net.wifi.WifiManager;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
@@ -28,6 +31,7 @@ import com.aispeech.export.listeners.AITTSListener;
 import com.aispeech.speech.AIAuthEngine;
 import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.utils.MPOnCompletionListener;
+import com.yihengke.robotspeech.utils.NetworkUtil;
 import com.yihengke.robotspeech.utils.RobotMediaPlayer;
 import com.yihengke.robotspeech.utils.SampleConstants;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
@@ -74,13 +78,21 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private String MP_COMPLET = "播放完成";
     private String GO_TO_SLEEP = "我要去休息了";
 
+    private String[] HEAD_TIPS = new String[]{"不要摸我的头", "有什么事么", "好讨厌"};
+    //    private String[] LEFT_HAND_TIPS = new String[]{"", "", ""};
+//    private String[] RIGHT_HAND_TIPS = new String[]{"", "", ""};
+    private String[] HAND_TIPS = new String[]{"你要跟我握手么", "你好啊", "有什么事么"};
+
+    private String HEAD_TOUCH_ACTION = "com.yinghengke.headtouch";
+    private String HAND_TOUCH_ACTION = "com.yinghengke.handtouch";
+
     private MyHandler mHandler;
     private boolean isInited = false;
     private boolean isAuthed = false;
     private boolean isScreenOFF = false;
     private boolean isUsedMediaPlayer = false;
     private boolean isGoSleeping = false;
-    private ScreenReceiver mScreenReceiver;
+    private RobotReceiver mRobotReceiver;
     private PowerManager.WakeLock wakeLock = null;
 
     private AIAuthEngine mAiAuthEngine;
@@ -118,15 +130,25 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     }
 
     private void initReceiver() {
-        mScreenReceiver = new ScreenReceiver();
+        mRobotReceiver = new RobotReceiver();
         IntentFilter mFilter = new IntentFilter();
         mFilter.addAction(Intent.ACTION_SCREEN_OFF);
         mFilter.addAction(Intent.ACTION_SCREEN_ON);
-        registerReceiver(mScreenReceiver, mFilter);
+        mFilter.addAction(HEAD_TOUCH_ACTION);
+        mFilter.addAction(HAND_TOUCH_ACTION);
+
+        mFilter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
+        mFilter.addAction(WifiManager.RSSI_CHANGED_ACTION);
+        mFilter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+        mFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+        mFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+        mFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
+
+        registerReceiver(mRobotReceiver, mFilter);
         Log.e(TAG, "registerReceiver......");
     }
 
-    class ScreenReceiver extends BroadcastReceiver {
+    class RobotReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
@@ -144,6 +166,47 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕点亮,释放wakelock...");
                 isScreenOFF = false;
                 releaseWakeLock();
+            } else if (action.equals(HEAD_TOUCH_ACTION)) {
+                if (isDebugLog) Log.e(TAG, "监听到触摸机器人 头 的广播");
+                Random mRandom = new Random();
+                int index = mRandom.nextInt(HEAD_TIPS.length);
+                CN_PREVIEW = HEAD_TIPS[index];
+                speakTips();
+
+            } else if (action.equals(HAND_TOUCH_ACTION)) {
+                if (isDebugLog) Log.e(TAG, "监听到触摸机器人 手 的广播");
+                Random mRandom = new Random();
+                int index = mRandom.nextInt(HAND_TIPS.length);
+                CN_PREVIEW = HAND_TIPS[index];
+                speakTips();
+            } else if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
+                int wifistate = intent.getIntExtra(WifiManager.EXTRA_WIFI_STATE, WifiManager.WIFI_STATE_DISABLED);
+                if (wifistate == WifiManager.WIFI_STATE_ENABLED) {// 如果开启
+
+                    if (isDebugLog) Log.e(TAG, "wifi打开了");
+                } else if (wifistate == WifiManager.WIFI_STATE_DISABLED) {
+                    if (isDebugLog) Log.e(TAG, "wifi关闭了");
+                    //wifi关闭后，将云对话引擎关闭
+                    if (mAiCloudSdsEngine != null) {
+                        mAiCloudSdsEngine.stopRecording();
+                    }
+                }
+            } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+                ConnectivityManager mConnectivityManager = (ConnectivityManager) context.
+                        getSystemService(Context.CONNECTIVITY_SERVICE);
+                NetworkInfo mWiFiNetworkInfo = mConnectivityManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+                // 只有网络连接成功时，条件才成立
+                if (mWiFiNetworkInfo.getState() != null && NetworkInfo.State.CONNECTED == mWiFiNetworkInfo.getState()) {
+                    //初始化，如果是使用过程中，则重新初始化云端对话引擎
+                    init();
+
+                } else if (NetworkInfo.State.DISCONNECTED == mWiFiNetworkInfo.getState()) {
+                    if (isDebugLog) Log.e(TAG, "wifi断开了");
+                    //断开网络后，将云对话引擎关闭
+                    if (mAiCloudSdsEngine != null) {
+                        mAiCloudSdsEngine.stopRecording();
+                    }
+                }
             }
         }
     }
@@ -179,6 +242,12 @@ public class SpeechService extends Service implements MPOnCompletionListener {
      */
     private void init() {
         if (isDebugLog) Log.e(TAG, "SpeechService init auth...");
+
+        if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
+            if (isDebugLog) Log.e(TAG, "WiFi网络没有连接");
+            return;
+        }
+
         isInited = true;
 
         mAiAuthEngine = AIAuthEngine.getInstance();
@@ -302,7 +371,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
         @Override
         public void onWakeupEngineStopped() {
-//            mAiLocalWakeupDnnEngine.start();
+            mAiLocalWakeupDnnEngine.start();
         }
     }
 
@@ -510,12 +579,14 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             String domain = sdsJsonObj.optString("domain");
             if (TextUtils.isEmpty(domain)) {
                 if (isDebugLog) Log.e(TAG, "解析json， domain 是空...");
+                mAiCloudSdsEngine.startWithRecording();
                 return;
             }
             if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
                 JSONObject dataJsonObj = sdsJsonObj.optJSONObject("data");
                 if (dataJsonObj == null) {
                     if (isDebugLog) Log.e(TAG, "domain = netfm，data == null");
+                    mAiCloudSdsEngine.startWithRecording();
                     return;
                 }
                 String output = sdsJsonObj.optString("output");
@@ -551,6 +622,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                                 mRobotMediaPlayer = new RobotMediaPlayer();
                                 mRobotMediaPlayer.setOnCompletionListener(this);
                                 mRobotMediaPlayer.playUrl(url);
+                                mAiCloudSdsEngine.stopRecording();
                             }
                         } else {
                             if (isDebugLog) Log.e(TAG, "开始播放音乐...");
@@ -558,6 +630,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                             mRobotMediaPlayer = new RobotMediaPlayer();
                             mRobotMediaPlayer.setOnCompletionListener(this);
                             mRobotMediaPlayer.playUrl(url);
+                            mAiCloudSdsEngine.stopRecording();
                         }
                     } else {
                         if (isDebugLog) Log.e(TAG, "开始播放音乐...");
@@ -565,6 +638,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         mRobotMediaPlayer = new RobotMediaPlayer();
                         mRobotMediaPlayer.setOnCompletionListener(this);
                         mRobotMediaPlayer.playUrl(url);
+                        mAiCloudSdsEngine.stopRecording();
                     }
                 } else {
                     isUsedMediaPlayer = false;
@@ -580,6 +654,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         controlRobot(outPut);
                         if (isDebugLog)
                             Log.e(TAG, "domain.equals(\"chat\"), input.contains 方向\n" + input);
+                        mAiCloudSdsEngine.startWithRecording();
                         return;
                     }
                 }
@@ -665,8 +740,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             mAiLocalWakeupDnnEngine.destroy();
             mAiLocalWakeupDnnEngine = null;
         }
-        if (mScreenReceiver != null) {
-            unregisterReceiver(mScreenReceiver);
+        if (mRobotReceiver != null) {
+            unregisterReceiver(mRobotReceiver);
         }
         if (mAiLocalTTSEngine != null) {
             mAiLocalTTSEngine.destroy();
