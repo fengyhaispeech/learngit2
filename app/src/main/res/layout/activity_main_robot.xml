@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/background_dark">
+
+    <ImageView
+        android:id="@+id/image_open_eye"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@mipmap/eyes_open" />
+
+    <ImageView
+        android:id="@+id/image_blink_eye"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@mipmap/eyes_blink"
+        android:visibility="invisible" />
+
+    <ImageView
+        android:id="@+id/image_left_eye"
+        android:layout_width="310px"
+        android:layout_height="310px"
+        android:layout_marginLeft="200px"
+        android:layout_marginTop="150px"
+        android:background="@mipmap/left_eye"
+        android:visibility="invisible" />
+
+    <ImageView
+        android:id="@+id/image_right_eye"
+        android:layout_width="310px"
+        android:layout_height="310px"
+        android:layout_alignParentRight="true"
+        android:layout_marginRight="200px"
+        android:layout_marginTop="150px"
+        android:background="@mipmap/right_eye"
+        android:visibility="invisible" />
+
+    <ImageView
+        android:id="@+id/image_red_up"
+        android:layout_width="150px"
+        android:layout_height="150px"
+        android:layout_alignParentRight="true"
+        android:layout_marginRight="20px"
+        android:layout_marginTop="20px"
+        android:background="@mipmap/red_up"
+        android:visibility="invisible" />
+
+    <FrameLayout
+        android:id="@+id/fl_click_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"></FrameLayout>
+</RelativeLayout>

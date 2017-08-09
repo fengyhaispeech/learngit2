@@ -25,8 +25,8 @@ public class BootBroadcastReceiver extends BroadcastReceiver {
         }
         if (intent.getAction().equals(ACTION_NOISY)) {
             Log.e("BootBroadcastReceiver", "开机铃声的action...");
-            Intent mIntent = new Intent(context, SpeechService.class);
-            context.startService(mIntent);
+//            Intent mIntent = new Intent(context, SpeechService.class);
+//            context.startService(mIntent);
         }
     }
 }

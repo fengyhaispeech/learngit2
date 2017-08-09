@@ -11,15 +11,34 @@
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
         android:onClick="btnStartOne"
-        android:text="蓝精灵" />
+        android:text="外婆的澎湖湾" />
 
     <Button
+        android:id="@+id/btn_two"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@+id/btn_one"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="20dp"
         android:onClick="btnStartTwo"
-        android:text="外婆的澎湖湾" />
+        android:text="蓝精灵" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/btn_two"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp"
+        android:onClick="btnStartThree"
+        android:text="我是一个粉刷匠" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="30dp"
+        android:onClick="btnStartService"
+        android:text="开始对话" />
 
 </RelativeLayout>
