@@ -5,13 +5,19 @@ android {
     buildToolsVersion "26.0.0"
     defaultConfig {
         applicationId "com.yihengke.robotspeech"
-        minSdkVersion 15
+        minSdkVersion 17
         targetSdkVersion 21
         versionCode 1
         versionName "0.0.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
         buildConfigField('boolean', 'DEBUG_LOG', 'true')
+    }
+    sourceSets {
+        main {
+            //jni库的调用会到资源文件夹下libs里面找so文件
+            jniLibs.srcDirs = ['libs']
+        }
     }
     buildTypes {
         release {
@@ -28,4 +34,5 @@ dependencies {
     })
     compile 'com.android.support:appcompat-v7:25.3.1'
     testCompile 'junit:junit:4.12'
+    compile files('libs/AISpeech-SDK-for-Android-2.0.1.jar')
 }
