@@ -33,6 +33,7 @@ import com.aispeech.export.listeners.AITTSListener;
 import com.aispeech.speech.AIAuthEngine;
 import com.yihengke.robotspeech.AppKey;
 import com.yihengke.robotspeech.BuildConfig;
+import com.yihengke.robotspeech.activity.MainActivity;
 import com.yihengke.robotspeech.utils.GrammarHelper;
 import com.yihengke.robotspeech.utils.MPOnCompletionListener;
 import com.yihengke.robotspeech.utils.NetworkUtil;
@@ -105,7 +106,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private AILocalGrammarEngine mAiLocalGrammarEngine;
 
     private RobotMediaPlayer mRobotMediaPlayer;
-    private boolean isMpOpause = false;
+    private boolean isMpOnpause = false;
     private boolean isFromWake = false;
 
     private static final String SP_NAME = "SpeechService";
@@ -180,6 +181,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 int index = mRandom.nextInt(HEAD_TIPS.length);
                 CN_PREVIEW = HEAD_TIPS[index];
                 if (isAuthed) {
+                    if (isUsedMediaPlayer && mRobotMediaPlayer != null) {
+                        mRobotMediaPlayer.pause();
+                        isMpOnpause = true;
+                    }
+                    mAiLocalTTSEngine.stop();
                     speakTips();
                 }
             } else if (action.equals(HAND_TOUCH_ACTION)) {
@@ -188,6 +194,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 int index = mRandom.nextInt(HAND_TIPS.length);
                 CN_PREVIEW = HAND_TIPS[index];
                 if (isAuthed) {
+                    if (isUsedMediaPlayer && mRobotMediaPlayer != null) {
+                        mRobotMediaPlayer.pause();
+                        isMpOnpause = true;
+                    }
+                    mAiLocalTTSEngine.stop();
                     speakTips();
                 }
             } else if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
@@ -281,13 +292,24 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 }// TODO 换成您的APPKEY和SECRETKEY
 
                 mAiAuthEngine.setOnAuthListener(new RobotAIAuthListener());
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (isDebugLog) Log.e(TAG, "开始执行授权...");
-                        mAiAuthEngine.doAuth();
-                    }
-                }).start();
+                if (mAiAuthEngine.isAuthed()) {
+                    //有可能是清除了应用的数据或是调试代码卸载了应用
+                    if (isDebugLog) Log.e(TAG, "sp中没有存储注册信息，但是mAiAuthEngine.isAuthed() == true");
+                    isAuthed = true;
+                    setSpAuthData();
+                    initWakeupDnnEngine();
+                    initAILocalTTSEngine();
+                    initAiLocalGrammarEngine();
+//                    initAiMixASREngine();//第一次编译资源完成不再需要编译
+                } else {
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (isDebugLog) Log.e(TAG, "开始执行授权...");
+                            mAiAuthEngine.doAuth();
+                        }
+                    }).start();
+                }
             }
         } else {
             if (isDebugLog) Log.e(TAG, "此设备已经注册过了");
@@ -384,7 +406,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             isGoSleeping = false;
             isFromWake = true;
             if (isUsedMediaPlayer && mRobotMediaPlayer != null) {
-                isMpOpause = true;
+                isMpOnpause = true;
                 mRobotMediaPlayer.pause();
             }
             //播放提示语
@@ -509,6 +531,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isFromWake = true");
                     isFromWake = false;
                     mAiMixASREngine.start();
+                } else if (isMpOnpause) {
+                    if (isDebugLog)
+                        Log.e(TAG, "RobotAITTSListener onCompletion isMpOnpause = true");
+                    mAiMixASREngine.start();
                 }
             } else if (isGoSleeping) {
                 if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isGoSleeping = true");
@@ -579,7 +605,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         // 生成ebnf语法
         GrammarHelper gh = new GrammarHelper(this);
         String appString = gh.getApps();
-        String ebnf = gh.importAssets("", appString, "asr.xbnf");
+        String ebnf = gh.importAssets("", "", "asr.xbnf");
         if (isDebugLog) Log.e(TAG, ebnf);
 //        System.out.println(ebnf);
         // 设置ebnf语法
@@ -602,15 +628,18 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAiMixASREngine.setServer(SampleConstants.server_production);//产品环境 //灰度环境
         mAiMixASREngine.setUseXbnfRec(true);
         mAiMixASREngine.setRes(SampleConstants.res_robot);
-        mAiMixASREngine.setUsePinyin(true);
+//        mAiMixASREngine.setUsePinyin(true);
         mAiMixASREngine.setUseForceout(false);
         mAiMixASREngine.setAthThreshold(0.6f);
         mAiMixASREngine.setIsRelyOnLocalConf(true);
         mAiMixASREngine.setIsPreferCloud(false);
-        mAiMixASREngine.setLocalBetterDomains(new String[]{"airobot"});
+        mAiMixASREngine.setLocalBetterDomains(new String[]{"robotctrl"});
 //        mAiMixASREngine.setCloudNotGoodAtDomains(new String[]{"phonecall","weixin"});
 //        mAiMixASREngine.putCloudLocalDomainMap("weixin", "wechat");
 //        mAiMixASREngine.putCloudLocalDomainMap("phonecall", "phone");
+        mAiMixASREngine.setCloudNotGoodAtDomains(new String[]{"motionctrl", "command"});
+        mAiMixASREngine.putCloudLocalDomainMap("motionctrl", "robotctrl");
+        mAiMixASREngine.putCloudLocalDomainMap("command", "robotctrl");
         mAiMixASREngine.setWaitCloudTimeout(2000);
         mAiMixASREngine.setPauseTime(700);
         mAiMixASREngine.setUseConf(true);
@@ -662,6 +691,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 CN_PREVIEW = SDS_ERRO_TIP[0];
                 mAiMixASREngine.stopRecording();
                 isGoSleeping = true;
+                isUsedMediaPlayer = false;
+                isMpOnpause = false;
             } else {
                 CN_PREVIEW = HELP_TIP;
             }
@@ -723,55 +754,72 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private void parseData(AIResult aiResult) {
         JSONResultParser parser = new JSONResultParser(aiResult.getResultObject().toString());
         JSONObject result = parser.getResult();
-        try {
-            JSONObject sdsJsonObj = result.optJSONObject("sds");
-            String domain = sdsJsonObj.optString("domain");
-            if (TextUtils.isEmpty(domain)) {
-                if (isDebugLog) Log.e(TAG, "解析json， domain 是空...");
-                mAiMixASREngine.start();
-                return;
-            }
-            if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
-                JSONObject dataJsonObj = sdsJsonObj.optJSONObject("data");
-                if (dataJsonObj == null) {
-                    if (isDebugLog) Log.e(TAG, "domain = netfm，data == null");
-                    mAiMixASREngine.start();
-                    return;
-                }
-                String output = sdsJsonObj.optString("output");
-                JSONArray dbdataJsArray = dataJsonObj.optJSONArray("dbdata");
-                if (dbdataJsArray != null && dbdataJsArray.length() > 0) {
-                    if (!TextUtils.isEmpty(output)) {
-                        isUsedMediaPlayer = true;
-                        isFromWake = false;
-                        isMpOpause = false;
-                        CN_PREVIEW = output;
-                        speakTips();
-                    }
 
-                    JSONObject netfmData = dbdataJsArray.optJSONObject(0);
-                    String url = netfmData.optString("playUrl32");
+        JSONObject sdsJsonObj = result.optJSONObject("sds");
+        if (sdsJsonObj == null) {
+            boolean isLocalData = localParseResult(result);
+            if (!isLocalData) {
+                if (isDebugLog) Log.e(TAG, "本地解析没有解析出来，不符合本地数据格式");
+                mAiMixASREngine.start();
+            }
+        } else {
+            boolean isCloudData = cloudParseResult(result);
+            if (!isCloudData) {
+                if (isDebugLog) Log.e(TAG, "云端数据解析没有解析出来，不符合云端数据格式");
+                mAiMixASREngine.start();
+            }
+        }
+    }
+
+    /**
+     * 解析云端返回的数据
+     *
+     * @param result
+     * @return
+     */
+    private boolean cloudParseResult(JSONObject result) {
+
+        JSONObject sdsJsonObj = result.optJSONObject("sds");
+        String domain = sdsJsonObj.optString("domain");
+        if (TextUtils.isEmpty(domain)) {
+            if (isDebugLog) Log.e(TAG, "云端数据解析json， domain == null...");
+            return false;
+        }
+        if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
+            JSONObject dataJsonObj = sdsJsonObj.optJSONObject("data");
+            if (dataJsonObj == null) {
+                if (isDebugLog) Log.e(TAG, "domain = netfm... ，data == null");
+                return false;
+            }
+            String output = sdsJsonObj.optString("output");
+            JSONArray dbdataJsArray = dataJsonObj.optJSONArray("dbdata");
+            if (dbdataJsArray != null && dbdataJsArray.length() > 0) {
+                if (!TextUtils.isEmpty(output)) {
+                    isUsedMediaPlayer = true;
+                    isFromWake = false;
+                    isMpOnpause = false;
+                    CN_PREVIEW = output;
+                    speakTips();
+                }
+                JSONObject netfmData = dbdataJsArray.optJSONObject(0);
+                if (netfmData == null) {
+                    if (isDebugLog) Log.e(TAG, "domain = netfm... ，netfmData == null");
+                    return false;
+                }
+                String url = netfmData.optString("playUrl32");
+                if (TextUtils.isEmpty(url)) {
+                    if (isDebugLog) Log.e(TAG, "playUrl32 isEmpty...");
+                    url = netfmData.optString("playUrl64");
                     if (TextUtils.isEmpty(url)) {
-                        if (isDebugLog) Log.e(TAG, "playUrl32 isEmpty...");
-                        url = netfmData.optString("playUrl64");
+                        if (isDebugLog) Log.e(TAG, "playUrl64 isEmpty...");
+                        url = netfmData.optString("url");
                         if (TextUtils.isEmpty(url)) {
-                            if (isDebugLog) Log.e(TAG, "playUrl64 isEmpty...");
-                            url = netfmData.optString("url");
-                            if (TextUtils.isEmpty(url)) {
-                                if (isDebugLog) Log.e(TAG, "获取 url isEmpty...");
-                                //没有音乐文件
-                                isUsedMediaPlayer = false;
-                                isFromWake = false;
-                                mAiMixASREngine.start();
-                            } else {
-                                if (isDebugLog) Log.e(TAG, "开始播放音乐...");
-                                isUsedMediaPlayer = true;
-                                isFromWake = false;
-                                mRobotMediaPlayer = new RobotMediaPlayer();
-                                mRobotMediaPlayer.setOnCompletionListener(this);
-                                mRobotMediaPlayer.playUrl(url);
-                                mAiMixASREngine.stopRecording();
-                            }
+                            if (isDebugLog) Log.e(TAG, "获取 url isEmpty...没有音乐文件");
+                            //没有音乐文件
+                            isUsedMediaPlayer = false;
+                            isFromWake = false;
+
+                            return false;
                         } else {
                             if (isDebugLog) Log.e(TAG, "开始播放音乐...");
                             isUsedMediaPlayer = true;
@@ -791,45 +839,87 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         mAiMixASREngine.stopRecording();
                     }
                 } else {
-                    isUsedMediaPlayer = false;
+                    if (isDebugLog) Log.e(TAG, "开始播放音乐...");
+                    isUsedMediaPlayer = true;
                     isFromWake = false;
-                    mAiMixASREngine.start();
+                    mRobotMediaPlayer = new RobotMediaPlayer();
+                    mRobotMediaPlayer.setOnCompletionListener(this);
+                    mRobotMediaPlayer.playUrl(url);
+                    mAiMixASREngine.stopRecording();
                 }
-            } else if (domain.equals("chat") || domain.equals("weather") || domain.equals("calendar") || domain.equals("calculator")) {
-                if (isDebugLog) Log.e(TAG, "domain 是 chat 或 weather，domain = " + domain);
-                String outPut = sdsJsonObj.optString("output");
-                String input = result.optString("input");
 
-                if (input.contains("向前") || input.contains("向后") || input.contains("往前") || input.contains("往后")
-                        || input.contains("向左") || input.contains("向右") || input.contains("往左") || input.contains("往右")
-                        || input.contains("前进") || input.contains("后退")) {
-                    if (isDebugLog)
-                        Log.e(TAG, "domain.equals(\"chat\"), input.contains 方向\n" + input);
-                    controlRobot(input);
-                } else {
-                    if (!TextUtils.isEmpty(outPut)) {
-                        //使用本地合成语音播放返回的内容
-                        CN_PREVIEW = outPut;
-                        speakTips();
-                    } else {
-                        if (isDebugLog) Log.e(TAG, "获取到的返回语音为空");
-                        mAiMixASREngine.start();
-                    }
-                }
-            } else if (domain.equals("motionctrl")) {//运动控制
-                if (isDebugLog) Log.e(TAG, "domain 运动控制，domain = " + domain);
-//                mAiMixASREngine.start();
-                controlRobot(result.optString("input"));
-            } else if (domain.equals("command")) {//中控
-                if (isDebugLog) Log.e(TAG, "domain 中控，domain = " + domain);
-                controlRobot(result.optString("input"));
-//                mAiMixASREngine.start();
+                return true;
             } else {
-                if (isDebugLog) Log.e(TAG, "domain 是其他的，domain = " + domain);
-                mAiMixASREngine.start();
+                isUsedMediaPlayer = false;
+                isFromWake = false;
+
+                return false;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } else if (domain.equals("chat") || domain.equals("weather") || domain.equals("calendar") || domain.equals("calculator")) {
+            if (isDebugLog) Log.e(TAG, "domain 是 chat 或 weather，domain = " + domain);
+            String outPut = sdsJsonObj.optString("output");
+            String input = result.optString("input");
+
+            if (input.contains("向前") || input.contains("向后") || input.contains("往前") || input.contains("往后")
+                    || input.contains("向左") || input.contains("向右") || input.contains("往左") || input.contains("往右")
+                    || input.contains("前进") || input.contains("后退")) {
+                if (isDebugLog)
+                    Log.e(TAG, "domain.equals(\"chat\"), input.contains 方向\n" + input);
+                controlRobot(input);
+                return true;
+            } else {
+                if (!TextUtils.isEmpty(outPut)) {
+                    //使用本地合成语音播放返回的内容
+                    CN_PREVIEW = outPut;
+                    speakTips();
+                    return true;
+                } else {
+                    if (isDebugLog) Log.e(TAG, "获取到的返回语音为空");
+                    return false;
+                }
+            }
+        } else if (domain.equals("motionctrl")) {//运动控制
+            if (isDebugLog) Log.e(TAG, "domain 运动控制，domain = " + domain);
+            controlRobot(result.optString("input"));
+            return true;
+        } else if (domain.equals("command")) {//中控
+            if (isDebugLog) Log.e(TAG, "domain 中控，domain = " + domain);
+            controlRobot(result.optString("input"));
+            return true;
+        } else {
+            if (isDebugLog) Log.e(TAG, "domain 是其他的，domain = " + domain);
+            return false;
+        }
+    }
+
+    /**
+     * 返回的是本地解析数据
+     *
+     * @param result
+     * @return
+     */
+    private boolean localParseResult(JSONObject result) {
+        JSONObject postJsonObject = result.optJSONObject("post");
+        if (postJsonObject == null) {
+            if (isDebugLog) Log.e(TAG, "本地解析 postJsonObject == null");
+            return false;
+        } else {
+            JSONObject semJsonObject = postJsonObject.optJSONObject("sem");
+            if (semJsonObject == null) {
+                if (isDebugLog) Log.e(TAG, "本地解析 semJsonObject == null");
+                return false;
+            } else {
+                String motorDomain = semJsonObject.optString("domain");
+                String motorCtrl = semJsonObject.optString("MOTOR_CTRL");
+                if (!TextUtils.isEmpty(motorDomain) && !TextUtils.isEmpty(motorCtrl)) {
+                    if (isDebugLog) Log.e(TAG, "本地识别资源匹配，执行相应操作 motorCtrl = " + motorCtrl);
+                    controlRobot(motorCtrl);
+                    return true;
+                } else {
+                    if (isDebugLog) Log.e(TAG, "本地解析 semJsonObject == null");
+                    return false;
+                }
+            }
         }
     }
 
@@ -838,10 +928,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         //在音乐播放完成时重新开始对话
         if (isDebugLog) Log.e(TAG, "音乐播放完成, 重新开始对话...");
         isUsedMediaPlayer = false;
-        isMpOpause = false;
+        isMpOnpause = false;
         CN_PREVIEW = MP_COMPLET;
         speakTips();
-//        mAiMixASREngine.start();
     }
 
     private void controlRobot(String ctrl_str) {
@@ -874,7 +963,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isDebugLog) Log.e(TAG, "ctrl_str.contains(\"停\") 停止播放");
                 mRobotMediaPlayer.stop();
                 isUsedMediaPlayer = false;
-                isMpOpause = false;
+                isMpOnpause = false;
                 mAiMixASREngine.start();
             } else {
                 int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
@@ -885,14 +974,19 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             }
         } else if (ctrl_str.contains("继续")) {
             if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续");
-            if (isUsedMediaPlayer && mRobotMediaPlayer != null && isMpOpause) {
+            if (isUsedMediaPlayer && mRobotMediaPlayer != null && isMpOnpause) {
                 if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续 播放");
-                isMpOpause = false;
+                isMpOnpause = false;
                 mRobotMediaPlayer.play();
             } else {
                 if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续 else 开始对话");
                 mAiMixASREngine.start();
             }
+        } else if (ctrl_str.contains("跳舞") || ctrl_str.contains("跳个舞")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 跳舞/跳个舞");
+            Intent mIntent = new Intent(SpeechService.this, MainActivity.class);
+            mIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(mIntent);
         } else {
             if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains else .. = " + ctrl_str);
             mAiMixASREngine.start();

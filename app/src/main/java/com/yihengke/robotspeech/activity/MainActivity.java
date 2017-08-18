@@ -325,6 +325,12 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
     }
 
     @Override
+    public void onBackPressed() {
+        destroyFields();
+        super.onBackPressed();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         WriteDataUtils.native_ear_light_control(0, 4, 0);
