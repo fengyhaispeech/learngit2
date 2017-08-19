@@ -6,7 +6,7 @@
 #$UP_LOW = (调大|调小|调到) /k="UP_LOW"/ ;
 #$NEXT_UP= (上一首|下一首) /k="NEXT_UP"/ ;
 #$PLAYER_STOP = (播放|暂停|停止) /k="PLAYER_STOP"/ ;
-$MOTOR_CTRL = (前进|后退|左转|右转|停止|跳舞|跳个舞) /k="MOTOR_CTRL"/ ;
+$MOTOR_CTRL = (前进|后退|左转|右转|停止|跳舞|跳个舞|继续) /k="MOTOR_CTRL"/ ;
 #$ONEWORDS = (我|把|的) /k="ONEWORDS"/ ;
 #$SPACES= (阳台|客厅|书房|厨房|楼上|地下室|走道|主卧|厕所)  /k="SPACES"/ ;
 #$GOODS = (空调|暖气|音箱|净化器|排风扇|抽油烟机|热水器|打印机|加湿器|除湿器|洗衣机

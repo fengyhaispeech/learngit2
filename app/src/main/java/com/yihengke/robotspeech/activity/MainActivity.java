@@ -1,5 +1,9 @@
 package com.yihengke.robotspeech.activity;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
@@ -15,9 +19,11 @@ import android.widget.ImageView;
 
 import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.R;
+import com.yihengke.robotspeech.service.SpeechService;
 import com.yihengke.robotspeech.utils.RotateAnim;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
 
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -31,6 +37,14 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
     private String TAG = "MainActivity";
     private String SONG_INDEX = "SONG_INDEX";
     private boolean isDebugLog = BuildConfig.DEBUG_LOG;
+
+    private static final String ACTION_DANCE_STARTED = "action_dance_started";//发送
+    private static final String ACTION_DANCE_STOPED = "action_dance_stoped";//发送
+    private static final String ACTION_DANCE_SERVICE_PAUSED = "action_dance_service_paused";//接收
+    private static final String ACTION_DANCE_SERVICE_STOP = "action_dance_service_stop";//接收
+    private static final String ACTION_DANCE_SERVICE_GO_ON = "action_dance_service_go_on";//接收
+
+    private MainReceiver mainReceiver;
 
     private MediaPlayer mediaPlayer;
     private int currentSong = 0;
@@ -52,13 +66,22 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_robot);
 
-        int index = getIntent().getIntExtra(SONG_INDEX, 1);
+        int index = getIntent().getIntExtra(SONG_INDEX, -1);
+        if (index == -1) {
+            Random mRandom = new Random();
+            index = mRandom.nextInt(4);
+            if (index == 0)
+                index = 1;
+        } else {
+            sendBroadcast(new Intent(ACTION_DANCE_STARTED));
+        }
         currentSong = index;
         initMedia(currentSong);
 
         handler = new MyHandler();
         initViews();
 //        startService(new Intent(MainActivity.this, SpeechService.class));
+        initReceiver();
     }
 
     private void initViews() {
@@ -130,8 +153,8 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
             mBlinkTimer = null;
         }
 
-        imageOpenEye.setVisibility(View.INVISIBLE);
-        imageBlinkEye.setVisibility(View.INVISIBLE);
+        imageOpenEye.setVisibility(View.GONE);
+        imageBlinkEye.setVisibility(View.GONE);
     }
 
     /**
@@ -168,9 +191,9 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
         imageLeftEye.clearAnimation();
         imageRightEye.clearAnimation();
 
-        imageLeftEye.setVisibility(View.INVISIBLE);
-        imageRightEye.setVisibility(View.INVISIBLE);
-        imageRedUp.setVisibility(View.INVISIBLE);
+        imageLeftEye.setVisibility(View.GONE);
+        imageRightEye.setVisibility(View.GONE);
+        imageRedUp.setVisibility(View.GONE);
     }
 
     /**
@@ -283,11 +306,11 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
                     if (currentEye == 0) {
 
                     } else if (currentEye == 1) {
-                        imageOpenEye.setVisibility(View.INVISIBLE);
+                        imageOpenEye.setVisibility(View.GONE);
                         imageBlinkEye.setVisibility(View.VISIBLE);
                     } else if (currentEye == 2) {
                         imageOpenEye.setVisibility(View.VISIBLE);
-                        imageBlinkEye.setVisibility(View.INVISIBLE);
+                        imageBlinkEye.setVisibility(View.GONE);
                     }
                     break;
                 case 2:
@@ -295,6 +318,39 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
                     break;
             }
 
+        }
+    }
+
+    private void initReceiver() {
+        mainReceiver = new MainReceiver();
+        IntentFilter mFilter = new IntentFilter();
+        mFilter.addAction(ACTION_DANCE_SERVICE_PAUSED);
+        mFilter.addAction(ACTION_DANCE_SERVICE_STOP);
+        mFilter.addAction(ACTION_DANCE_SERVICE_GO_ON);
+        registerReceiver(mainReceiver, mFilter);
+    }
+
+    class MainReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (action.equals(ACTION_DANCE_SERVICE_PAUSED)) {
+                mediaPlayer.pause();
+                if (mTimer != null) {
+                    mTimer.cancel();
+                    mTimer = null;
+                }
+                WriteDataUtils.native_ear_light_control(0, 4, 0);
+            } else if (action.equals(ACTION_DANCE_SERVICE_GO_ON)) {
+                mediaPlayer.start();
+                if (mTimer == null) {
+                    mTimer = new Timer();
+                    mTimer.scheduleAtFixedRate(new MediaTask(), 0, 3 * 1000);
+                }
+            } else if (action.equals(ACTION_DANCE_SERVICE_STOP)) {
+                destroyFields();
+                finish();
+            }
         }
     }
 
@@ -321,6 +377,9 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
             mBlinkTimer.cancel();
             mBlinkTimer = null;
         }
+        if (mainReceiver != null) {
+            unregisterReceiver(mainReceiver);
+        }
         WriteDataUtils.native_ear_light_control(0, 4, 0);
     }
 
@@ -332,7 +391,8 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         WriteDataUtils.native_ear_light_control(0, 4, 0);
+        sendBroadcast(new Intent(ACTION_DANCE_STOPED));
+        super.onDestroy();
     }
 }
