@@ -43,6 +43,7 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
     private static final String ACTION_DANCE_SERVICE_PAUSED = "action_dance_service_paused";//接收
     private static final String ACTION_DANCE_SERVICE_STOP = "action_dance_service_stop";//接收
     private static final String ACTION_DANCE_SERVICE_GO_ON = "action_dance_service_go_on";//接收
+    private static final String ACTION_DANCE_SERVICE_NEXT_UP = "action_dance_service_next_up";//接收
 
     private MainReceiver mainReceiver;
 
@@ -324,6 +325,7 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
         mFilter.addAction(ACTION_DANCE_SERVICE_PAUSED);
         mFilter.addAction(ACTION_DANCE_SERVICE_STOP);
         mFilter.addAction(ACTION_DANCE_SERVICE_GO_ON);
+        mFilter.addAction(ACTION_DANCE_SERVICE_NEXT_UP);
         registerReceiver(mainReceiver, mFilter);
     }
 
@@ -347,6 +349,20 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
             } else if (action.equals(ACTION_DANCE_SERVICE_STOP)) {
                 destroyFields();
                 finish();
+            } else if (action.equals(ACTION_DANCE_SERVICE_NEXT_UP)) {
+                if (currentSong == 1) {
+                    currentSong = 2;
+                    initMedia(currentSong);
+                } else if (currentSong == 2) {
+                    currentSong = 3;
+                    initMedia(currentSong);
+                } else if (currentSong == 3) {
+                    currentSong = 1;
+                    initMedia(currentSong);
+                } else {
+                    currentSong = 2;
+                    initMedia(currentSong);
+                }
             }
         }
     }
