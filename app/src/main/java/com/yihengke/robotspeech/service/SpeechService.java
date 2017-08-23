@@ -1,11 +1,14 @@
 package com.yihengke.robotspeech.service;
 
+import android.app.ActivityManager;
 import android.app.Service;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
@@ -45,6 +48,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.FileNotFoundException;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -83,6 +87,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private String[] SDS_ERRO_TIP = new String[]{"你没有事，我就去休息了", "网络异常，请检查网络"};
     private String MP_COMPLET = "播放完成";
     private String GO_TO_SLEEP = "我要去休息了";
+    private String MEDIA_STOPED = "已停止";
 
     private String[] HEAD_TIPS = new String[]{"不要摸我的头", "有什么事么", "好讨厌"};
     private String[] HAND_TIPS = new String[]{"你要跟我握手么", "你好啊", "有什么事么"};
@@ -110,7 +115,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private boolean isFromWake = false;
 
     private static final String SP_NAME = "SpeechService";
-    private static final String SP_AUTHED_KEY = "sp_authed_key";
+    private static final String SP_GRAMMAR_INITED_KEY = "sp_grammar_inited_key";
 
     private static final String ACTION_DANCE_STARTED = "action_dance_started";//接收
     private static final String ACTION_DANCE_STOPED = "action_dance_stoped";//接收
@@ -121,11 +126,16 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private boolean isMainDancing = false;
     private boolean isMainOnPause = false;
 
+    private AudioManager audioManager;
+    private int currentVolume, maxVolume;
+    private String systemSettingName = "com.yihengke.systemsettings";
+    private String systemMainActivity = "com.yihengke.systemsettings.activity.MainActivity";
     @Override
     public void onCreate() {
         super.onCreate();
         if (isDebugLog) Log.e(TAG, "service created ...");
         mContext = this;
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         initReceiver();
         init();
         startForeground(0, null);
@@ -165,7 +175,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
 
         registerReceiver(mRobotReceiver, mFilter);
-        Log.e(TAG, "registerReceiver......");
+        if (isDebugLog) Log.e(TAG, "registerReceiver......");
     }
 
     class RobotReceiver extends BroadcastReceiver {
@@ -260,6 +270,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isDebugLog) Log.e(TAG, "接收到主页面 结束 跳舞的广播");
                 isMainDancing = false;
                 isMainOnPause = false;
+                CN_PREVIEW = "跳舞结束";
+                speakTips();
             }
         }
     }
@@ -301,12 +313,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
         mHandler = new MyHandler();
 
-//        boolean isAuthedOnceTime = getSpAuthData();
-//        if (!isAuthedOnceTime) {
         if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
             if (isDebugLog) Log.e(TAG, "WiFi网络没有连接,没有注册过");
         } else {
-            if (isDebugLog) Log.e(TAG, "WiFi网络连接正常,第一次启动，开始注册");
+            if (isDebugLog) Log.e(TAG, "WiFi网络连接正常，开始判断是否注册，开始初始化");
 
             isInited = true;
             mAiAuthEngine = AIAuthEngine.getInstance(getApplicationContext());
@@ -320,14 +330,18 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
             mAiAuthEngine.setOnAuthListener(new RobotAIAuthListener());
             if (mAiAuthEngine.isAuthed()) {
-                //有可能是清除了应用的数据或是调试代码卸载了应用
-                if (isDebugLog) Log.e(TAG, "sp中没有存储注册信息，但是mAiAuthEngine.isAuthed() == true");
                 isAuthed = true;
-//                setSpAuthData();
+
                 initWakeupDnnEngine();
                 initAILocalTTSEngine();
-                initAiLocalGrammarEngine();
-//                    initAiMixASREngine();//第一次编译资源完成不再需要编译
+                //有可能是清除了应用的数据或是调试代码卸载了应用
+                if (getSpGrammarInited()) {
+                    if (isDebugLog) Log.e(TAG, "本地识别资源已经编译过了，直接初始化混合识别引擎");
+                    initAiMixASREngine();//第一次编译资源完成不再需要编译
+                } else {
+                    if (isDebugLog) Log.e(TAG, "本地识别资源还没编译，开始编译本地识别资源");
+                    initAiLocalGrammarEngine();
+                }
             } else {
                 new Thread(new Runnable() {
                     @Override
@@ -338,33 +352,24 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 }).start();
             }
         }
-//        } else {
-//            if (isDebugLog) Log.e(TAG, "此设备已经注册过了");
-//            isInited = true;
-//            isAuthed = true;
-//            initWakeupDnnEngine();
-//            initAILocalTTSEngine();
-////            initAiLocalGrammarEngine();
-//            initAiMixASREngine();//第一次编译资源完成不再需要编译
-//        }
     }
 
     /**
-     * 获取是否注册成功
+     * 获取本地识别资源是否编译完成过
      *
      * @return
      */
-    private boolean getSpAuthData() {
+    private boolean getSpGrammarInited() {
         SharedPreferences mPreferences = getSharedPreferences(SP_NAME, MODE_PRIVATE);
-        return mPreferences.getBoolean(SP_AUTHED_KEY, false);
+        return mPreferences.getBoolean(SP_GRAMMAR_INITED_KEY, false);
     }
 
     /**
-     * 注册成功后存储成功结果
+     * 本地识别资源编译完成后保存
      */
-    private void setSpAuthData() {
+    private void setSpGrammarInited() {
         SharedPreferences.Editor editor = mContext.getSharedPreferences(SP_NAME, MODE_PRIVATE).edit();
-        editor.putBoolean(SP_AUTHED_KEY, true).commit();
+        editor.putBoolean(SP_GRAMMAR_INITED_KEY, true).commit();
     }
 
     /**
@@ -375,7 +380,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         public void onAuthSuccess() {
             if (isDebugLog) Log.e(TAG, "授权成功...初始化三个引擎");
             isAuthed = true;
-//            setSpAuthData();
 
             initWakeupDnnEngine();
             initAILocalTTSEngine();
@@ -626,6 +630,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         public void onUpdateCompleted(String recordId, String path) {
             if (isDebugLog) Log.e(TAG, "资源生成/更新成功\npath=" + path + "\n重新加载识别引擎...");
             initAiMixASREngine();
+            setSpGrammarInited();//保存编译完成的信息
         }
     }
 
@@ -672,10 +677,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAiMixASREngine.putCloudLocalDomainMap("motionctrl", "robotctrl");
         mAiMixASREngine.putCloudLocalDomainMap("command", "robotctrl");
         mAiMixASREngine.setWaitCloudTimeout(2000);
-        mAiMixASREngine.setPauseTime(700);
+        mAiMixASREngine.setPauseTime(0);
         mAiMixASREngine.setUseConf(true);
 //        mAiMixASREngine.setVersion("1.0.4"); //设置资源的版本号
-        mAiMixASREngine.setNoSpeechTimeOut(15 * 1000);
+        mAiMixASREngine.setNoSpeechTimeOut(10 * 1000);
         mAiMixASREngine.setMaxSpeechTimeS(20);
 //        mAiMixASREngine.setDeviceId(Util.getIMEI(this));
         mAiMixASREngine.setCloudVadEnable(false);
@@ -714,20 +719,29 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             int errorId = aiError.getErrId();
             if (errorId == 70603) {//"error":"Websocket connect timeout","errId"
                 CN_PREVIEW = SDS_ERRO_TIP[1];
+                speakTips();
             } else if (errorId == 70610) {//"error":"Network abnormal.connection closed"
                 CN_PREVIEW = SDS_ERRO_TIP[1];
+                speakTips();
             } else if (errorId == 70910) {//"error":"等待云端结果超时"
                 CN_PREVIEW = SDS_ERRO_TIP[1];
+                speakTips();
             } else if (errorId == 70904) {//"error":"没有检测到语音"
-                CN_PREVIEW = SDS_ERRO_TIP[0];
                 mAiMixASREngine.stopRecording();
-                isGoSleeping = true;
-                isUsedMediaPlayer = false;
-                isMpOnpause = false;
+                if (isUsedMediaPlayer && isMpOnpause) {
+                    if (isDebugLog) Log.e(TAG, "没有检测到声音，开始播放暂停的歌曲");
+                    mRobotMediaPlayer.play();
+                } else {
+                    CN_PREVIEW = SDS_ERRO_TIP[0];
+                    isGoSleeping = true;
+                    isUsedMediaPlayer = false;
+                    isMpOnpause = false;
+                    speakTips();
+                }
             } else {
                 CN_PREVIEW = HELP_TIP;
+                speakTips();
             }
-            speakTips();
         }
 
         @Override
@@ -901,7 +915,19 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             } else {
                 if (!TextUtils.isEmpty(outPut)) {
                     //使用本地合成语音播放返回的内容
-                    CN_PREVIEW = outPut;
+                    if (outPut.contains("是哪个漂亮的妹子")) {
+                        CN_PREVIEW = "你好啊，小主人";
+                    } else if (outPut.contains("我爸爸是思必驰")) {
+                        CN_PREVIEW = "我爸爸是小精灵";
+                    } else if (outPut.contains("我妈叫思必驰")) {
+                        CN_PREVIEW = "我妈是小精灵";
+                    } else if (outPut.contains("我妈妈是思必驰")) {
+                        CN_PREVIEW = "我妈是小精灵";
+                    } else if (outPut.contains("我妈妈在思必驰")) {
+                        CN_PREVIEW = "我妈妈在鲁奇亚";
+                    } else {
+                        CN_PREVIEW = outPut;
+                    }
                     speakTips();
                     return true;
                 } else {
@@ -941,10 +967,19 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 return false;
             } else {
                 String motorDomain = semJsonObject.optString("domain");
-                String motorCtrl = semJsonObject.optString("MOTOR_CTRL");
-                if (!TextUtils.isEmpty(motorDomain) && !TextUtils.isEmpty(motorCtrl)) {
-                    if (isDebugLog) Log.e(TAG, "本地识别资源匹配，执行相应操作 motorCtrl = " + motorCtrl);
-                    controlRobot(motorCtrl);
+                String stringCtrl = semJsonObject.optString("MOTOR_CTRL");
+                if (TextUtils.isEmpty(stringCtrl)) {
+                    stringCtrl = semJsonObject.optString("VOLUME_CTRL");
+                    if (TextUtils.isEmpty(stringCtrl)) {
+                        stringCtrl = semJsonObject.optString("NEXT_UP");
+                        if (TextUtils.isEmpty(stringCtrl)) {
+                            stringCtrl = semJsonObject.optString("OPEN_SETTING");
+                        }
+                    }
+                }
+                if (!TextUtils.isEmpty(motorDomain) && !TextUtils.isEmpty(stringCtrl)) {
+                    if (isDebugLog) Log.e(TAG, "本地识别资源匹配，执行相应操作 motorCtrl = " + stringCtrl);
+                    controlRobot(stringCtrl);
                     return true;
                 } else {
                     if (isDebugLog) Log.e(TAG, "本地解析 semJsonObject == null");
@@ -995,12 +1030,16 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 sendBroadcast(new Intent(ACTION_DANCE_SERVICE_STOP));
                 isMainDancing = false;
                 isMainOnPause = false;
+                CN_PREVIEW = MEDIA_STOPED;
+                speakTips();
             } else if (isUsedMediaPlayer && mRobotMediaPlayer != null) {
                 if (isDebugLog) Log.e(TAG, "ctrl_str.contains(\"停\") 停止播放");
                 mRobotMediaPlayer.stop();
                 isUsedMediaPlayer = false;
                 isMpOnpause = false;
-                mAiMixASREngine.start();
+                //mAiMixASREngine.start();
+                CN_PREVIEW = MEDIA_STOPED;
+                speakTips();
             } else {
                 int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
                 if (isDebugLog) Log.e(TAG, "MOTOR_STOP 的返回值是: " + callback);
@@ -1035,10 +1074,82 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             startActivity(mIntent);
             isMainDancing = true;
             isMainOnPause = false;
+        } else if (ctrl_str.contains("声音大一点") || ctrl_str.contains("大声点")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 声音大一点/大声点");
+            setUpVolume(0);
+        } else if (ctrl_str.contains("声音小一点") || ctrl_str.contains("小声点")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 声音小一点/小声点");
+            setUpVolume(1);
+        } else if (ctrl_str.contains("打开设置")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 打开设置");
+            if (!isForeground(systemMainActivity)) {
+                startApp(systemSettingName);
+            }
+            CN_PREVIEW = "设置";
+            speakTips();
         } else {
             if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains else .. = " + ctrl_str);
             mAiMixASREngine.start();
         }
+    }
+
+    /**
+     * 调节音量
+     *
+     * @param sign
+     */
+    private void setUpVolume(int sign) {
+        maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+        if (sign == 0) {//加大
+            if (currentVolume == maxVolume) {
+                CN_PREVIEW = "已经是最大声音";
+            } else {
+                audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, currentVolume++, 0);
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, currentVolume++, 0);
+                CN_PREVIEW = "已经调大了声音";
+            }
+            speakTips();
+
+        } else {//减小
+            if (currentVolume == 0) {
+                CN_PREVIEW = "已经是最小声音";
+            } else {
+                audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, currentVolume--, 0);
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, currentVolume--, 0);
+                CN_PREVIEW = "已经调小了声音";
+            }
+            speakTips();
+        }
+    }
+
+    /**
+     * 启动程序
+     *
+     * @param packageName
+     */
+    public void startApp(String packageName) {
+        Intent intent = this.getPackageManager().getLaunchIntentForPackage(packageName);
+        if (intent != null) {
+            // 已安装包 直接启动
+            startActivity(intent);
+        }
+    }
+
+    private boolean isForeground(String className) {
+        if (TextUtils.isEmpty(className)) {
+            return false;
+        }
+
+        ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        List<ActivityManager.RunningTaskInfo> list = am.getRunningTasks(1);
+        if (list != null && list.size() > 0) {
+            ComponentName cpn = list.get(0).topActivity;
+            if (className.equals(cpn.getClassName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

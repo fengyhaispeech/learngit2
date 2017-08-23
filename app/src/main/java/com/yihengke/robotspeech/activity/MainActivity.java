@@ -48,8 +48,8 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
 
     private MediaPlayer mediaPlayer;
     private int currentSong = 0;
-    private int[] ljl = new int[]{0, 2, 3, 1, 2, 1, 0, 3, 2, 3, 1, 2};
-    private int[] phw = new int[]{1, 0, 3, 2, 1, 2, 1, 0, 2, 3, 2, 0};
+    private int[] ljl = new int[]{0, 2, 3, 1, 2, 1, 0, 3, 0, 3, 1, 2};
+    private int[] phw = new int[]{1, 0, 3, 0, 1, 2, 1, 0, 2, 3, 1, 0};
     private int[] fsj = new int[]{2, 0, 1, 2, 1, 0, 3, 1, 2, 3, 0, 2};
 
     private Timer mTimer, mAnimTimer, mBlinkTimer;
@@ -275,12 +275,9 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
 
     @Override
     public void onCompletion(MediaPlayer mp) {
-        mp.release();
-        if (mTimer != null) {
-            mTimer.cancel();
-            mTimer = null;
-        }
-        WriteDataUtils.native_ear_light_control(0, 4, 0);
+//        mp.release();
+        destroyFields();
+        finish();
     }
 
     @Override

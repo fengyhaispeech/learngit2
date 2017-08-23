@@ -4,9 +4,11 @@
 #$HELLO_JD = 你好思必驰 | 我要睡觉了;
 #$OPEN_CLOSE = (开|关|打开|关闭|启动|关上)  /k="OPEN_CLOSE"/ ;
 #$UP_LOW = (调大|调小|调到) /k="UP_LOW"/ ;
-#$NEXT_UP= (上一首|下一首) /k="NEXT_UP"/ ;
 #$PLAYER_STOP = (播放|暂停|停止) /k="PLAYER_STOP"/ ;
-$MOTOR_CTRL = (前进|后退|左转|右转|停止|跳舞|跳个舞|继续) /k="MOTOR_CTRL"/ ;
+$MOTOR_CTRL = (向前|前进|后退|左转|右转|停止|跳舞|跳个舞|继续) /k="MOTOR_CTRL"/ ;
+$VOLUME_CTRL = (声音大一点|声音小一点|大声点|小声点) /k="VOLUME_CTRL"/ ;
+$OPEN_SETTING= (打开设置) /k="OPEN_SETTING"/ ;
+#$NEXT_UP= (上一首|下一首) /k="NEXT_UP"/ ;
 #$ONEWORDS = (我|把|的) /k="ONEWORDS"/ ;
 #$SPACES= (阳台|客厅|书房|厨房|楼上|地下室|走道|主卧|厕所)  /k="SPACES"/ ;
 #$GOODS = (空调|暖气|音箱|净化器|排风扇|抽油烟机|热水器|打印机|加湿器|除湿器|洗衣机
@@ -16,12 +18,14 @@ $MOTOR_CTRL = (前进|后退|左转|右转|停止|跳舞|跳个舞|继续) /k="M
 #$CMD_SPECIAL = $ONEWORDS $GOODS $OPEN_CLOSE;
 #$CMD_PLAYER_STOP = $PLAYER_STOP [播放];
 $CMD_MOTOR_CTRL = $MOTOR_CTRL;
+$CMD_VOLUME_CTRL = $VOLUME_CTRL;
+$CMD_OPEN_SETTING = $OPEN_SETTING;
 #$CMD_UP_LOW =$UP_LOW (声音 | $NUM 度);
 #$CMD_NEXT_UP = $NEXT_UP;
 #$CMD_HELLO_JD = $HELLO_JD ;
 #$CMD_MESSAGE = ($CMD_OPEN_CLOSE | $CMD_SPECIAL | $CMD_PLAYER_STOP | $CMD_UP_LOW | $CMD_NEXT_UP | $CMD_HELLO_JD)/domain="aihome"/;
 
-$CMD_MESSAGE = ($CMD_MOTOR_CTRL)/domain="robotctrl"/;
+$CMD_MESSAGE = ($CMD_MOTOR_CTRL | $CMD_VOLUME_CTRL | $CMD_OPEN_SETTING)/domain="robotctrl"/;
 
 ( \<s\> ( $CMD_MESSAGE ) \<\/s\> )
 
