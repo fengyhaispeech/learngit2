@@ -19,7 +19,6 @@ import android.widget.ImageView;
 
 import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.R;
-import com.yihengke.robotspeech.service.SpeechService;
 import com.yihengke.robotspeech.utils.RotateAnim;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
 
@@ -50,7 +49,6 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
     private MediaPlayer mediaPlayer;
     private int currentSong = 0;
     private int[] ljl = new int[]{0, 2, 3, 1, 2, 1, 0, 3, 0, 3, 1, 2};
-    private int[] phw = new int[]{1, 0, 3, 0, 1, 2, 1, 0, 2, 3, 1, 0};
     private int[] fsj = new int[]{2, 0, 1, 2, 1, 0, 3, 1, 2, 3, 0, 2};
 
     private Timer mTimer, mAnimTimer, mBlinkTimer;
@@ -70,7 +68,7 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
         int index = getIntent().getIntExtra(SONG_INDEX, -1);
         if (index == -1) {
             Random mRandom = new Random();
-            index = mRandom.nextInt(4);
+            index = mRandom.nextInt(3);
             if (index == 0)
                 index = 1;
         } else {
@@ -205,14 +203,12 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
     private void initMedia(int index) {
         int resId = 0;
         if (index == 1) {
-            resId = R.raw.penghuwan;
+            resId = R.raw.fenshuajiang;
         } else if (index == 2) {
             resId = R.raw.lanjingling;
-        } else if (index == 3) {
-            resId = R.raw.fenshuajiang;
         } else {
             currentSong = 1;
-            resId = R.raw.penghuwan;
+            resId = R.raw.fenshuajiang;
         }
         if (mediaPlayer != null && mediaPlayer.isPlaying()) {
             mediaPlayer.stop();
@@ -239,7 +235,7 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
 
         @Override
         public void run() {
-            if (currentSong == 1) {
+            if (currentSong == 2) {
                 if (times >= ljl.length) {
                     times = 0;
                 }
@@ -247,15 +243,7 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
                 WriteDataUtils.native_ear_light_control(0, step, 0);
 
                 times++;
-            } else if (currentSong == 2) {
-                if (times >= phw.length) {
-                    times = 0;
-                }
-                int step = phw[times];
-                WriteDataUtils.native_ear_light_control(0, step, 0);
-
-                times++;
-            } else if (currentSong == 3) {
+            } else if (currentSong == 1) {
                 if (times >= fsj.length) {
                     times = 0;
                 }
@@ -354,9 +342,6 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
                     currentSong = 2;
                     initMedia(currentSong);
                 } else if (currentSong == 2) {
-                    currentSong = 3;
-                    initMedia(currentSong);
-                } else if (currentSong == 3) {
                     currentSong = 1;
                     initMedia(currentSong);
                 } else {

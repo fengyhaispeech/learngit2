@@ -710,7 +710,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAiMixASREngine.setPauseTime(0);
         mAiMixASREngine.setUseConf(true);
 //        mAiMixASREngine.setVersion("1.0.4"); //设置资源的版本号
-        mAiMixASREngine.setNoSpeechTimeOut(10 * 1000);
+        mAiMixASREngine.setNoSpeechTimeOut(5 * 1000);
         mAiMixASREngine.setMaxSpeechTimeS(20);
 //        mAiMixASREngine.setDeviceId(Util.getIMEI(this));
         mAiMixASREngine.setCloudVadEnable(false);
@@ -946,7 +946,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 controlRobot(input);
                 return true;
             } else if (input.equals("语言启蒙") | input.equals("美图酷拍") | input.equals("小视频") | input.equals("卡拉OK")
-                    | input.equals("多元智能") | input.equals("蒙特梭利") | input.equals("亲子互动")) {
+                    | input.equals("多元智能") | input.equals("蒙特梭利") | input.equals("亲子互动") | input.equals("卡拉")) {
                 openMainMenu(input);
                 return true;
             } else {
@@ -957,6 +957,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     } else if (outPut.contains("我爸爸是思必驰")) {
                         CN_PREVIEW = "我爸爸是小精灵";
                     } else if (outPut.contains("思必驰是我爸爸")) {
+                        CN_PREVIEW = "我爸爸是小精灵";
+                    } else if (outPut.contains("思必驰的所有攻城狮，程序猿哥哥都是我的巴比")) {
                         CN_PREVIEW = "我爸爸是小精灵";
                     } else if (outPut.contains("我妈妈叫思必驰")) {
                         CN_PREVIEW = "我妈是小精灵";
@@ -1135,11 +1137,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             startActivity(mIntent);
             isMainDancing = true;
             isMainOnPause = false;
-        } else if (ctrl_str.contains("声音大一点") || ctrl_str.contains("大声点")) {
-            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 声音大一点/大声点");
+        } else if (ctrl_str.contains("声音大一点") || ctrl_str.contains("大声一点") || ctrl_str.contains("音量加")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 声音大一点/大声一点/音量加");
             setUpVolume(0);
-        } else if (ctrl_str.contains("声音小一点") || ctrl_str.contains("小声点")) {
-            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 声音小一点/小声点");
+        } else if (ctrl_str.contains("声音小一点") || ctrl_str.contains("小声一点") || ctrl_str.contains("音量减")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 声音小一点/小声一点/音量减");
             setUpVolume(1);
         } else if (ctrl_str.contains("打开设置")) {
             if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 打开设置");
@@ -1185,6 +1187,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (!isForeground(mainApkVideoActivity))
                 startMianApkMenuActivity(mainApkVideoActivity);
         } else if (ctrl_str.equals("卡拉OK")) {
+            CN_PREVIEW = "卡拉OK";
+            if (!isForeground(mainApkKalaOkActivity))
+                startMianApkMenuActivity(mainApkKalaOkActivity);
+        } else if (ctrl_str.equals("卡拉")) {
             CN_PREVIEW = "卡拉OK";
             if (!isForeground(mainApkKalaOkActivity))
                 startMianApkMenuActivity(mainApkKalaOkActivity);
