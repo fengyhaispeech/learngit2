@@ -113,6 +113,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private RobotMediaPlayer mRobotMediaPlayer;
     private boolean isMpOnpause = false;
     private boolean isFromWake = false;
+    private long mediaPauseTime;
 
     private static final String SP_NAME = "SpeechService";
     private static final String SP_GRAMMAR_INITED_KEY = "sp_grammar_inited_key";
@@ -220,6 +221,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     if (isUsedMediaPlayer && mRobotMediaPlayer != null) {
                         mRobotMediaPlayer.pause();
                         isMpOnpause = true;
+                        mediaPauseTime = System.currentTimeMillis();
                     }
                     if (isMainDancing && !isMainOnPause) {
                         sendBroadcast(new Intent(ACTION_DANCE_SERVICE_PAUSED));
@@ -243,6 +245,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     if (isUsedMediaPlayer && mRobotMediaPlayer != null) {
                         mRobotMediaPlayer.pause();
                         isMpOnpause = true;
+                        mediaPauseTime = System.currentTimeMillis();
                     }
                     if (isMainDancing && !isMainOnPause) {
                         sendBroadcast(new Intent(ACTION_DANCE_SERVICE_PAUSED));
@@ -464,8 +467,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             isGoSleeping = false;
             isFromWake = true;
             if (isUsedMediaPlayer && mRobotMediaPlayer != null) {
-                isMpOnpause = true;
                 mRobotMediaPlayer.pause();
+                isMpOnpause = true;
+                mediaPauseTime = System.currentTimeMillis();
             }
             if (isMainDancing && !isMainOnPause) {
                 sendBroadcast(new Intent(ACTION_DANCE_SERVICE_PAUSED));
@@ -763,7 +767,17 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 mAiMixASREngine.stopRecording();
                 if (isUsedMediaPlayer && isMpOnpause) {
                     if (isDebugLog) Log.e(TAG, "没有检测到声音，开始播放暂停的歌曲");
-                    mRobotMediaPlayer.play();
+                    long currentTimes = System.currentTimeMillis();
+                    if ((currentTimes - mediaPauseTime) > 40 * 1000) {
+                        mRobotMediaPlayer.stop();
+                        CN_PREVIEW = SDS_ERRO_TIP[0];
+                        isGoSleeping = true;
+                        isUsedMediaPlayer = false;
+                        isMpOnpause = false;
+                        speakTips();
+                    } else {
+                        mRobotMediaPlayer.play();
+                    }
                 } else {
                     CN_PREVIEW = SDS_ERRO_TIP[0];
                     isGoSleeping = true;
