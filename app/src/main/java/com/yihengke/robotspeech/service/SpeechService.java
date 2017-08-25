@@ -1,6 +1,7 @@
 package com.yihengke.robotspeech.service;
 
 import android.app.ActivityManager;
+import android.app.Instrumentation;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -19,6 +20,7 @@ import android.os.PowerManager;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.KeyEvent;
 
 import com.aispeech.AIError;
 import com.aispeech.AIResult;
@@ -131,7 +133,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private AudioManager audioManager;
     private int currentVolume, maxVolume;
     private String systemSettingName = "com.yihengke.systemsettings";
-    private String systemMainActivity = "com.yihengke.systemsettings.activity.MainActivity";
+    private String systemMainActivity = "com.yihengke.systemsettings.activity.MainActivityOld";
+    private String robotMainActivity = "com.yihengke.robotspeech.activity.MainActivity";
     private String mainApkPackage = "com.wyt.launcher.hkxingkong";
     private String mainApkActivity = "com.wyt.launcher.hkxingkong.XueqianActivity";
     public static final String apkVoiceActivity = "com.wyt.launcher.hkxingkong.VoiceActivity";//机器人脸的页面
@@ -475,7 +478,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 sendBroadcast(new Intent(ACTION_DANCE_SERVICE_PAUSED));
                 isMainOnPause = true;
             }
-            if (!isForeground(apkVoiceActivity)) {
+            if (!isForeground(apkVoiceActivity) && isForeground(mainApkActivity)) {
                 startMianApkMenuActivity(apkVoiceActivity);
             }
             //播放提示语
@@ -1011,6 +1014,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             }
             controlRobot(inputStr);
             return true;
+        } else if (domain.equals("translation")) {
+            if (isDebugLog) Log.e(TAG, "domain 翻译，domain = " + domain);
+            return speakTranslate(sdsJsonObj);
         } else {
             if (isDebugLog) Log.e(TAG, "domain 是其他的，domain = " + domain);
             return false;
@@ -1178,6 +1184,26 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     }
 
     /**
+     * 读出翻译的词语
+     *
+     * @param sdsJsonObj
+     */
+    private boolean speakTranslate(JSONObject sdsJsonObj) {
+        JSONObject dataJsonObj = sdsJsonObj.optJSONObject("data");
+        if (dataJsonObj == null)
+            return false;
+        JSONArray dbdataArray = dataJsonObj.optJSONArray("dbdata");
+        if (dbdataArray == null || dbdataArray.length() == 0)
+            return false;
+        String dst = dbdataArray.optJSONObject(0).optString("dst");
+        if (TextUtils.isEmpty(dst))
+            return false;
+        CN_PREVIEW = dst;
+        speakTips();
+        return true;
+    }
+
+    /**
      * 打开指定的二级页面
      *
      * @param ctrl_str
@@ -1222,11 +1248,18 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 startMianApkMenuActivity(mainApkQinziActivity);
         } else if (ctrl_str.equals("退出")) {
             CN_PREVIEW = "已退出";
+            if (isForeground(robotMainActivity)) {
+                sendBroadcast(new Intent(ACTION_DANCE_SERVICE_STOP));
+            }
             if (!isForeground(mainApkActivity))
                 startMianApkMenuActivity(mainApkActivity);
         } else if (ctrl_str.equals("拍照")) {
-            CN_PREVIEW = "拍照";
-
+            if (!isForeground(mainApkCameraActivity)) {
+                CN_PREVIEW = "请先打开美图酷拍";
+            } else {
+                CN_PREVIEW = "拍照";
+                takePicture();
+            }
         }
         speakTips();
     }
@@ -1308,6 +1341,20 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             }
         }
         return false;
+    }
+
+    /**
+     * 模拟点击拍照按键
+     */
+    private void takePicture() {
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Instrumentation inst = new Instrumentation();
+                inst.sendKeyDownUpSync(KeyEvent.KEYCODE_CAMERA);
+            }
+        });
+        t.start();
     }
 
     @Override
