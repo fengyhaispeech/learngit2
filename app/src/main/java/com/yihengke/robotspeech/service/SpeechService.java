@@ -127,6 +127,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private static final String ACTION_DANCE_SERVICE_GO_ON = "action_dance_service_go_on";//发送
     private static final String ACTION_DANCE_SERVICE_NEXT_UP = "action_dance_service_next_up";//发送
 
+    private static final String SPEECH_WAKE_UP_ROBOT_SCREEN = "speech_wake_up_robot_screen";//发送
+
     private boolean isMainDancing = false;
     private boolean isMainOnPause = false;
 
@@ -148,6 +150,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private String mainApkCameraActivity = "com.android.camera.CameraActivity";
 
     private long lastTime;
+
+    private int asrTimes;
 
     @Override
     public void onCreate() {
@@ -214,7 +218,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕点亮,释放wakelock...");
                 isScreenOFF = false;
-                releaseWakeLock();
+//                releaseWakeLock();
             } else if (action.equals(HEAD_TOUCH_ACTION)) {
                 if (isDebugLog) Log.e(TAG, "监听到触摸机器人 头 的广播");
                 Random mRandom = new Random();
@@ -328,8 +332,16 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     int callback = WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
                     if (isDebugLog) Log.e(TAG, "Handler 检测运动超时，MOTOR_STOP 的返回值是: " + callback);
                     if (isAuthed) {
-                        mAiMixASREngine.start();
+//                        mAiMixASREngine.start();
+//                        isNeedStopRecording();
+                        CN_PREVIEW = "请指示";
+                        speakTips();
                     }
+                    break;
+                case 2:
+                    //语音对话停止后释放锁
+                    if (isDebugLog) Log.e(TAG, "语音对话停止后释放锁...");
+                    releaseWakeLock();
                     break;
             }
         }
@@ -347,7 +359,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mHandler = new MyHandler();
 
         if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
-            if (isDebugLog) Log.e(TAG, "WiFi网络没有连接,没有注册过");
+            if (isDebugLog) Log.e(TAG, "WiFi网络没有连接,等待网络...");
         } else {
             if (isDebugLog) Log.e(TAG, "WiFi网络连接正常，开始判断是否注册，开始初始化");
 
@@ -465,7 +477,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (isDebugLog) Log.e(TAG, "唤醒成功...");
             if (isScreenOFF) {
                 //点亮屏幕
-                acquireWakeLock();
+                sendBroadcast(new Intent(SPEECH_WAKE_UP_ROBOT_SCREEN));
             }
             isGoSleeping = false;
             isFromWake = true;
@@ -482,8 +494,13 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 startMianApkMenuActivity(apkVoiceActivity);
             }
             //播放提示语
+            mAiLocalTTSEngine.stop();
             CN_PREVIEW = HELP_TIP;
             speakTips();
+            asrTimes = 0;
+            acquireWakeLock();//实现在对话中不息屏
+            mHandler.removeMessages(2);
+            mHandler.sendEmptyMessageDelayed(2, 60 * 1000);
         }
 
         @Override
@@ -522,7 +539,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private void acquireWakeLock() {
         if (null == wakeLock) {
             PowerManager pm = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
-            wakeLock = pm.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_DIM_WAKE_LOCK, "PostLocationService");
+            wakeLock = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "TAG");
             if (null != wakeLock) {
                 wakeLock.acquire();
                 if (isDebugLog) Log.e(TAG, "acquireWakeLock OK......");
@@ -606,7 +623,14 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 } else if (isMpOnpause) {
                     if (isDebugLog)
                         Log.e(TAG, "RobotAITTSListener onCompletion isMpOnpause = true");
-                    mAiMixASREngine.start();
+//                    mAiMixASREngine.start();
+                    isNeedStopRecording();
+                    long currentTimes = System.currentTimeMillis();
+                    if ((currentTimes - mediaPauseTime) > 20 * 1000) {
+                        mRobotMediaPlayer.stop();
+                        isUsedMediaPlayer = false;
+                        isMpOnpause = false;
+                    }
                 }
             } else if (isGoSleeping) {
                 if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isGoSleeping = true");
@@ -615,7 +639,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             } else {
                 if (isDebugLog)
                     Log.e(TAG, "RobotAITTSListener onCompletion mAiMixASREngine.start()");
-                mAiMixASREngine.start();
+//                mAiMixASREngine.start();
+                isNeedStopRecording();
             }
         }
 
@@ -703,7 +728,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAiMixASREngine.setRes(SampleConstants.res_robot);
 //        mAiMixASREngine.setUsePinyin(true);
         mAiMixASREngine.setUseForceout(false);
-        mAiMixASREngine.setAthThreshold(0.6f);
+        mAiMixASREngine.setAthThreshold(0.7f);
         mAiMixASREngine.setIsRelyOnLocalConf(true);
         mAiMixASREngine.setIsPreferCloud(false);
         mAiMixASREngine.setLocalBetterDomains(new String[]{"robotctrl"});
@@ -771,7 +796,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isUsedMediaPlayer && isMpOnpause) {
                     if (isDebugLog) Log.e(TAG, "没有检测到声音，开始播放暂停的歌曲");
                     long currentTimes = System.currentTimeMillis();
-                    if ((currentTimes - mediaPauseTime) > 40 * 1000) {
+                    if ((currentTimes - mediaPauseTime) > 20 * 1000) {
                         mRobotMediaPlayer.stop();
                         CN_PREVIEW = SDS_ERRO_TIP[0];
                         isGoSleeping = true;
@@ -792,6 +817,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 CN_PREVIEW = HELP_TIP;
                 speakTips();
             }
+            asrTimes++;
         }
 
         @Override
@@ -800,6 +826,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (aiResult.getResultType() == AIConstant.AIENGINE_MESSAGE_TYPE_JSON) {
                     if (isDebugLog)
                         Log.e(TAG, "result JSON = " + aiResult.getResultObject().toString());
+                    asrTimes++;
                     parseData(aiResult);
                 }
             }
@@ -855,13 +882,17 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             boolean isLocalData = localParseResult(result);
             if (!isLocalData) {
                 if (isDebugLog) Log.e(TAG, "本地解析没有解析出来，不符合本地数据格式");
-                mAiMixASREngine.start();
+                //isNeedStopRecording();
+                CN_PREVIEW = "我们换个问题聊聊吧";
+                speakTips();
             }
         } else {
             boolean isCloudData = cloudParseResult(result);
             if (!isCloudData) {
                 if (isDebugLog) Log.e(TAG, "云端数据解析没有解析出来，不符合云端数据格式");
-                mAiMixASREngine.start();
+//                isNeedStopRecording();
+                CN_PREVIEW = "我们换个问题聊聊吧";
+                speakTips();
             }
         }
     }
@@ -973,14 +1004,24 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         CN_PREVIEW = "你好啊，小主人";
                     } else if (outPut.contains("我爸爸是思必驰")) {
                         CN_PREVIEW = "我爸爸是小精灵";
+                    } else if (outPut.contains("爸是思必驰")) {
+                        CN_PREVIEW = "我爸爸是小精灵";
+                    } else if (outPut.contains("我爸爸叫思必驰")) {
+                        CN_PREVIEW = "我爸爸是小精灵";
+                    } else if (outPut.contains("爸叫思必驰")) {
+                        CN_PREVIEW = "我爸爸是小精灵";
                     } else if (outPut.contains("思必驰是我爸爸")) {
                         CN_PREVIEW = "我爸爸是小精灵";
                     } else if (outPut.contains("思必驰的所有攻城狮，程序猿哥哥都是我的巴比")) {
                         CN_PREVIEW = "我爸爸是小精灵";
                     } else if (outPut.contains("我妈妈叫思必驰")) {
-                        CN_PREVIEW = "我妈是小精灵";
+                        CN_PREVIEW = "我妈妈是小精灵";
+                    } else if (outPut.contains("妈叫思必驰")) {
+                        CN_PREVIEW = "我妈妈是小精灵";
                     } else if (outPut.contains("我妈妈是思必驰")) {
-                        CN_PREVIEW = "我妈是小精灵";
+                        CN_PREVIEW = "我妈妈是小精灵";
+                    } else if (outPut.contains("妈是思必驰")) {
+                        CN_PREVIEW = "我妈妈是小精灵";
                     } else if (outPut.contains("我妈妈在思必驰")) {
                         CN_PREVIEW = "我妈妈在鲁奇亚";
                     } else if (outPut.contains("我是小驰")) {
@@ -1004,11 +1045,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         } else if (domain.equals("command")) {//中控
             if (isDebugLog) Log.e(TAG, "domain 中控，domain = " + domain);
             String inputStr = result.optString("input");
-            if (inputStr.equals("退出")) {
+            if (inputStr.equals("退出") || inputStr.equals("返回")) {
                 openMainMenu(inputStr);
                 return true;
-            }
-            if (inputStr.equals("拍照")) {
+            } else if (inputStr.equals("拍照")) {
                 openMainMenu(inputStr);
                 return true;
             }
@@ -1078,6 +1118,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         if (isDebugLog) Log.e(TAG, "音乐播放完成, 重新开始对话...");
         isUsedMediaPlayer = false;
         isMpOnpause = false;
+        isGoSleeping = true;
         CN_PREVIEW = MP_COMPLET;
         speakTips();
     }
@@ -1142,7 +1183,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 mRobotMediaPlayer.play();
             } else {
                 if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续 else 开始对话");
-                mAiMixASREngine.start();
+//                mAiMixASREngine.start();
+                CN_PREVIEW = "我们换个问题聊聊吧";
+                speakTips();
             }
         } else if (ctrl_str.contains("跳舞") || ctrl_str.contains("跳个舞")) {
             if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 跳舞/跳个舞");
@@ -1179,7 +1222,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             }
         } else {
             if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains else .. = " + ctrl_str);
-            mAiMixASREngine.start();
+//            mAiMixASREngine.start();
+//            isNeedStopRecording();
+            CN_PREVIEW = "我们换个问题聊聊吧";
+            speakTips();
         }
     }
 
@@ -1246,7 +1292,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             CN_PREVIEW = "亲子互动";
             if (!isForeground(mainApkQinziActivity))
                 startMianApkMenuActivity(mainApkQinziActivity);
-        } else if (ctrl_str.equals("退出")) {
+        } else if (ctrl_str.equals("退出") || ctrl_str.equals("返回")) {
             CN_PREVIEW = "已退出";
             if (isForeground(robotMainActivity)) {
                 sendBroadcast(new Intent(ACTION_DANCE_SERVICE_STOP));
@@ -1255,13 +1301,37 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 startMianApkMenuActivity(mainApkActivity);
         } else if (ctrl_str.equals("拍照")) {
             if (!isForeground(mainApkCameraActivity)) {
-                CN_PREVIEW = "请先打开美图酷拍";
+                CN_PREVIEW = "美图酷拍";
+                Intent intent = new Intent(); //调用照相机
+                intent.setAction("android.media.action.STILL_IMAGE_CAMERA");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
             } else {
                 CN_PREVIEW = "拍照";
                 takePicture();
             }
         }
         speakTips();
+    }
+
+    private void isNeedStopRecording() {
+        if (!isForeground(mainApkActivity) && !isForeground(apkVoiceActivity)) {
+            if (asrTimes >= 2) {
+                if (isDebugLog) Log.e(TAG, "现在不是在主页面或表情页面，超过了2次");
+                mAiMixASREngine.stopRecording();
+            } else {
+                if (isDebugLog) Log.e(TAG, "现在不是在主页面或表情页面，没有到2次");
+                mAiMixASREngine.start();
+            }
+        } else {
+            if (asrTimes >= 6) {
+                if (isDebugLog) Log.e(TAG, "现在是在主页面或表情页面，超过了6次");
+                mAiMixASREngine.stopRecording();
+            } else {
+                if (isDebugLog) Log.e(TAG, "现在是在主页面或表情页面，没有到6次");
+                mAiMixASREngine.start();
+            }
+        }
     }
 
     /**
@@ -1384,6 +1454,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             mAiMixASREngine.destroy();
             mAiMixASREngine = null;
         }
+        releaseWakeLock();
         if (isDebugLog) Log.e(TAG, "SpeechService destroied...");
     }
 }
