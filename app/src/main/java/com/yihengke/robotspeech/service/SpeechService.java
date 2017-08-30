@@ -102,7 +102,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private boolean isAuthed = false;
     private boolean isScreenOFF = false;
     private boolean isUsedMediaPlayer = false;
-    private boolean isGoSleeping = false;
+    private boolean isGoSleeping = true;
     private RobotReceiver mRobotReceiver;
     private PowerManager.WakeLock wakeLock = null;
 
@@ -148,10 +148,19 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private String mainApkMengteActivity = "com.wyt.launcher.hkxingkong.xueqian.FlashMtslActivity";
     private String mainApkQinziActivity = "com.wyt.launcher.hkxingkong.xueqian.FlashMainActivity";
     private String mainApkCameraActivity = "com.android.camera.CameraActivity";
+    private String mainApkKalaokPlayActivity = "com.wyt.launcher.hkxingkong.module.mediaplayer.player.VideoPalyActivity";
+    private String mainApkLocalVedioActivity = "com.wyt.launcher.hkxingkong.module.mediaplayer.player.VideoPlayerActivity1";
+
+    private static final String ACTION_LOCAL_VEDIO_PAUSE = "action_local_vedio_pause";
+    private static final String ACTION_LOCAL_VEDIO_GO_ON = "action_local_vedio_go_on";
+    private static final String ACTION_ROBOT_CAN_NOT_UNDERSTAND = "action_robot_can_not_understand";
+    private static final String ACTION_ROBOT_WAKE_UP = "action_robot_wake_up";
+    private static final String ACTION_ROBOT_GO_TO_SLEEP = "action_robot_go_to_sleep";
 
     private long lastTime;
 
     private int asrTimes;
+    private boolean isSystemSleeped;
 
     @Override
     public void onCreate() {
@@ -213,12 +222,23 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     mAiLocalTTSEngine.stop();//暂停播放语音和云端对话
                     mAiMixASREngine.stopRecording();
 //                    mAiLocalWakeupDnnEngine.start();//息屏后判断如果已经获取了授权，就开始等待唤醒
+                    mHandler.removeMessages(3);
+                    mHandler.sendEmptyMessageDelayed(3, 10 * 60 * 1000);
                 }
 
             } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕点亮,释放wakelock...");
                 isScreenOFF = false;
 //                releaseWakeLock();
+                mHandler.removeMessages(3);
+                if (isSystemSleeped) {
+                    if (isAuthed) {
+                        if (isDebugLog) Log.e(TAG, "系统之前是深度休眠，现在要重新初始化引擎");
+                        initWakeupDnnEngine();
+                        initAiMixASREngine();
+                    }
+                }
+                isSystemSleeped = false;
             } else if (action.equals(HEAD_TOUCH_ACTION)) {
                 if (isDebugLog) Log.e(TAG, "监听到触摸机器人 头 的广播");
                 Random mRandom = new Random();
@@ -238,6 +258,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     if ((currentTime - lastTime) <= 1) {
                         lastTime = currentTime;
                     } else {
+                        if (isForeground(mainApkKalaokPlayActivity) || isForeground(mainApkLocalVedioActivity)) {
+                            sendBroadcast(new Intent(ACTION_LOCAL_VEDIO_PAUSE));
+                        }
                         mAiLocalTTSEngine.stop();
                         speakTips();
                         lastTime = currentTime;
@@ -262,6 +285,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     if ((currentTime - lastTime) <= 1) {
                         lastTime = currentTime;
                     } else {
+                        if (isForeground(mainApkKalaokPlayActivity) || isForeground(mainApkLocalVedioActivity)) {
+                            sendBroadcast(new Intent(ACTION_LOCAL_VEDIO_PAUSE));
+                        }
                         mAiLocalTTSEngine.stop();
                         speakTips();
                         lastTime = currentTime;
@@ -342,6 +368,16 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     //语音对话停止后释放锁
                     if (isDebugLog) Log.e(TAG, "语音对话停止后释放锁...");
                     releaseWakeLock();
+                    break;
+                case 3:
+                    if (isDebugLog) Log.e(TAG, "息屏超过指定时间，销毁引擎使系统进入深度休眠");
+                    isSystemSleeped = true;
+                    mAiLocalTTSEngine.stop();
+//                    mAiLocalTTSEngine.destroy();
+                    mAiMixASREngine.stopRecording();
+                    mAiMixASREngine.destroy();
+                    mAiLocalWakeupDnnEngine.stop();
+                    mAiLocalWakeupDnnEngine.destroy();
                     break;
             }
         }
@@ -491,7 +527,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 isMainOnPause = true;
             }
             if (!isForeground(apkVoiceActivity) && isForeground(mainApkActivity)) {
-                startMianApkMenuActivity(apkVoiceActivity);
+                startMianApkMenuActivity(apkVoiceActivity);//在主页面打开表情页面
+            } else if (isForeground(mainApkKalaokPlayActivity) || isForeground(mainApkLocalVedioActivity)) {
+                sendBroadcast(new Intent(ACTION_LOCAL_VEDIO_PAUSE));//在播放本地视频或卡拉OK页面，发送暂停命令
+            } else if (isForeground(apkVoiceActivity)) {
+                sendBroadcast(new Intent(ACTION_ROBOT_WAKE_UP));//在表情页面发送唤醒命令，切换眨眼动画
             }
             //播放提示语
             mAiLocalTTSEngine.stop();
@@ -500,7 +540,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             asrTimes = 0;
             acquireWakeLock();//实现在对话中不息屏
             mHandler.removeMessages(2);
-            mHandler.sendEmptyMessageDelayed(2, 60 * 1000);
+            mHandler.sendEmptyMessageDelayed(2, 70 * 1000);
         }
 
         @Override
@@ -802,6 +842,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         isGoSleeping = true;
                         isUsedMediaPlayer = false;
                         isMpOnpause = false;
+                        if (isForeground(apkVoiceActivity))
+                            sendBroadcast(new Intent(ACTION_ROBOT_GO_TO_SLEEP));
                         speakTips();
                     } else {
                         mRobotMediaPlayer.play();
@@ -811,6 +853,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     isGoSleeping = true;
                     isUsedMediaPlayer = false;
                     isMpOnpause = false;
+                    if (isForeground(apkVoiceActivity))
+                        sendBroadcast(new Intent(ACTION_ROBOT_GO_TO_SLEEP));
                     speakTips();
                 }
             } else {
@@ -883,6 +927,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (!isLocalData) {
                 if (isDebugLog) Log.e(TAG, "本地解析没有解析出来，不符合本地数据格式");
                 //isNeedStopRecording();
+//                if (!isForeground(mainApkLocalVedioActivity) && !isForeground(mainApkKalaokPlayActivity))
+                if (isForeground(apkVoiceActivity))
+                    sendBroadcast(new Intent(ACTION_ROBOT_CAN_NOT_UNDERSTAND));
                 CN_PREVIEW = "我们换个问题聊聊吧";
                 speakTips();
             }
@@ -891,6 +938,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (!isCloudData) {
                 if (isDebugLog) Log.e(TAG, "云端数据解析没有解析出来，不符合云端数据格式");
 //                isNeedStopRecording();
+//                if (!isForeground(mainApkLocalVedioActivity) && !isForeground(mainApkKalaokPlayActivity))
+                if (isForeground(apkVoiceActivity))
+                    sendBroadcast(new Intent(ACTION_ROBOT_CAN_NOT_UNDERSTAND));
                 CN_PREVIEW = "我们换个问题聊聊吧";
                 speakTips();
             }
@@ -1171,19 +1221,25 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 mHandler.removeMessages(1);
                 mHandler.sendEmptyMessage(1);
             }
-        } else if (ctrl_str.contains("继续")) {
-            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续");
+        } else if (ctrl_str.contains("继续播放")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续播放");
             if (isMainDancing && isMainOnPause) {
-                if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续 跳舞");
+                if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续播放 跳舞");
                 sendBroadcast(new Intent(ACTION_DANCE_SERVICE_GO_ON));
                 isMainOnPause = false;
             } else if (isUsedMediaPlayer && mRobotMediaPlayer != null && isMpOnpause) {
                 if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续 播放");
                 isMpOnpause = false;
                 mRobotMediaPlayer.play();
+            } else if (isForeground(mainApkKalaokPlayActivity) || isForeground(mainApkLocalVedioActivity)) {
+                if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续 播放本地视频或卡拉OK");
+                sendBroadcast(new Intent(ACTION_LOCAL_VEDIO_GO_ON));
             } else {
                 if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续 else 开始对话");
 //                mAiMixASREngine.start();
+//                if (!isForeground(mainApkLocalVedioActivity) && !isForeground(mainApkKalaokPlayActivity))
+                if (isForeground(apkVoiceActivity))
+                    sendBroadcast(new Intent(ACTION_ROBOT_CAN_NOT_UNDERSTAND));
                 CN_PREVIEW = "我们换个问题聊聊吧";
                 speakTips();
             }
@@ -1200,11 +1256,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             startActivity(mIntent);
             isMainDancing = true;
             isMainOnPause = false;
-        } else if (ctrl_str.contains("声音大一点") || ctrl_str.contains("大声一点") || ctrl_str.contains("音量加")) {
-            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 声音大一点/大声一点/音量加");
+        } else if (ctrl_str.contains("音量大一点") || ctrl_str.contains("大声一点") || ctrl_str.contains("音量加")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 音量大一点/大声一点/音量加");
             setUpVolume(0);
-        } else if (ctrl_str.contains("声音小一点") || ctrl_str.contains("小声一点") || ctrl_str.contains("音量减")) {
-            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 声音小一点/小声一点/音量减");
+        } else if (ctrl_str.contains("音量小一点") || ctrl_str.contains("小声一点") || ctrl_str.contains("音量减")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 音量小一点/小声一点/音量减");
             setUpVolume(1);
         } else if (ctrl_str.contains("打开设置")) {
             if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 打开设置");
@@ -1224,6 +1280,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains else .. = " + ctrl_str);
 //            mAiMixASREngine.start();
 //            isNeedStopRecording();
+//            if (!isForeground(mainApkLocalVedioActivity) && !isForeground(mainApkKalaokPlayActivity))
+            if (isForeground(apkVoiceActivity))
+                sendBroadcast(new Intent(ACTION_ROBOT_CAN_NOT_UNDERSTAND));
             CN_PREVIEW = "我们换个问题聊聊吧";
             speakTips();
         }
@@ -1327,6 +1386,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (asrTimes >= 6) {
                 if (isDebugLog) Log.e(TAG, "现在是在主页面或表情页面，超过了6次");
                 mAiMixASREngine.stopRecording();
+                if (isForeground(apkVoiceActivity))
+                    sendBroadcast(new Intent(ACTION_ROBOT_GO_TO_SLEEP));
             } else {
                 if (isDebugLog) Log.e(TAG, "现在是在主页面或表情页面，没有到6次");
                 mAiMixASREngine.start();
@@ -1364,7 +1425,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
         if (sign == 0) {//加大
             if (currentVolume == maxVolume) {
-                CN_PREVIEW = "已经是最大声音";
+                CN_PREVIEW = "已经是最大音量";
             } else {
                 audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, currentVolume++, 0);
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, currentVolume++, 0);
@@ -1374,7 +1435,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
         } else {//减小
             if (currentVolume == 0) {
-                CN_PREVIEW = "已经是最小声音";
+                CN_PREVIEW = "已经是最小音量";
             } else {
                 audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, currentVolume--, 0);
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, currentVolume--, 0);
