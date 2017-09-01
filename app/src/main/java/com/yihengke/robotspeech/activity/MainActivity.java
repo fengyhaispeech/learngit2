@@ -24,7 +24,7 @@ import java.util.TimerTask;
  * Created by Administrator on 2017/8/24.
  */
 
-public class MainActivity extends AppCompatActivity implements MediaPlayer.OnCompletionListener {
+public class MainActivity extends AppCompatActivity {
 
     private String TAG = "MainActivity";
     private String SONG_INDEX = "SONG_INDEX";
@@ -45,15 +45,15 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnCom
     private Timer mTimer;
 
     private VideoView mVideoView;
-    String uriAbcd;
-    String uriXiao;
+    String uriLanjingling;
+    String uriFenshuajiang;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_new);
-        uriAbcd = "android.resource://" + getPackageName() + "/" + R.raw.lanjingling;
-        uriXiao = "android.resource://" + getPackageName() + "/" + R.raw.fenshuajiang;
+        uriLanjingling = "android.resource://" + getPackageName() + "/" + R.raw.lanjingling;
+        uriFenshuajiang = "android.resource://" + getPackageName() + "/" + R.raw.fenshuajiang;
 
         mVideoView = (VideoView) findViewById(R.id.videoView_dance);
         mVideoView.setMediaController(new MediaController(this));
@@ -63,6 +63,17 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnCom
         initReceiver();
         sendBroadcast(new Intent(ACTION_DANCE_STARTED));
         //startService(new Intent(MainActivityOld.this, SpeechService.class));
+        mVideoView.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mp) {
+                if (mTimer != null) {
+                    mTimer.cancel();
+                    mTimer = null;
+                }
+                WriteDataUtils.native_ear_light_control(0, 4, 0);
+                finish();
+            }
+        });
     }
 
     private void initVideo(int index) {
@@ -70,9 +81,9 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnCom
             mVideoView.stopPlayback();
         }
         if (index == 0) {
-            mVideoView.setVideoURI(Uri.parse(uriAbcd));
+            mVideoView.setVideoURI(Uri.parse(uriLanjingling));
         } else {
-            mVideoView.setVideoURI(Uri.parse(uriXiao));
+            mVideoView.setVideoURI(Uri.parse(uriFenshuajiang));
         }
         mVideoView.start();
         if (mTimer == null) {
@@ -154,16 +165,6 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnCom
                 times++;
             }
         }
-    }
-
-    @Override
-    public void onCompletion(MediaPlayer mp) {
-        mVideoView.stopPlayback();
-        if (mTimer != null) {
-            mTimer.cancel();
-            mTimer = null;
-        }
-        finish();
     }
 
     @Override
