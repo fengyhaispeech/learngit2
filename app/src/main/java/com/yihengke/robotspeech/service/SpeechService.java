@@ -540,7 +540,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             asrTimes = 0;
             acquireWakeLock();//实现在对话中不息屏
             mHandler.removeMessages(2);
-            mHandler.sendEmptyMessageDelayed(2, 70 * 1000);
+            mHandler.sendEmptyMessageDelayed(2, 90 * 1000);
         }
 
         @Override
@@ -666,7 +666,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 //                    mAiMixASREngine.start();
                     isNeedStopRecording();
                     long currentTimes = System.currentTimeMillis();
-                    if ((currentTimes - mediaPauseTime) > 20 * 1000) {
+                    if ((currentTimes - mediaPauseTime) > 30 * 1000) {
                         mRobotMediaPlayer.stop();
                         isUsedMediaPlayer = false;
                         isMpOnpause = false;
@@ -836,7 +836,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isUsedMediaPlayer && isMpOnpause) {
                     if (isDebugLog) Log.e(TAG, "没有检测到声音，开始播放暂停的歌曲");
                     long currentTimes = System.currentTimeMillis();
-                    if ((currentTimes - mediaPauseTime) > 20 * 1000) {
+                    if ((currentTimes - mediaPauseTime) > 30 * 1000) {
                         mRobotMediaPlayer.stop();
                         CN_PREVIEW = SDS_ERRO_TIP[0];
                         isGoSleeping = true;
@@ -846,6 +846,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                             sendBroadcast(new Intent(ACTION_ROBOT_GO_TO_SLEEP));
                         speakTips();
                     } else {
+                        isMpOnpause = false;
                         mRobotMediaPlayer.play();
                     }
                 } else {
@@ -930,7 +931,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 //                if (!isForeground(mainApkLocalVedioActivity) && !isForeground(mainApkKalaokPlayActivity))
                 if (isForeground(apkVoiceActivity))
                     sendBroadcast(new Intent(ACTION_ROBOT_CAN_NOT_UNDERSTAND));
-                CN_PREVIEW = "我们换个问题聊聊吧";
+                if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
+                    CN_PREVIEW = "请连接网络";
+                } else {
+                    CN_PREVIEW = "我们换个问题聊聊吧";
+                }
                 speakTips();
             }
         } else {
@@ -941,7 +946,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 //                if (!isForeground(mainApkLocalVedioActivity) && !isForeground(mainApkKalaokPlayActivity))
                 if (isForeground(apkVoiceActivity))
                     sendBroadcast(new Intent(ACTION_ROBOT_CAN_NOT_UNDERSTAND));
-                CN_PREVIEW = "我们换个问题聊聊吧";
+                if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
+                    CN_PREVIEW = "请连接网络";
+                } else {
+                    CN_PREVIEW = "我们换个问题聊聊吧";
+                }
                 speakTips();
             }
         }
@@ -1221,10 +1230,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 mHandler.removeMessages(1);
                 mHandler.sendEmptyMessage(1);
             }
-        } else if (ctrl_str.contains("继续播放")) {
-            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续播放");
+        } else if (ctrl_str.contains("继续")) {
+            if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续");
             if (isMainDancing && isMainOnPause) {
-                if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续播放 跳舞");
+                if (isDebugLog) Log.e(TAG, "controlRobot ctrl_str contains : 继续 跳舞");
                 sendBroadcast(new Intent(ACTION_DANCE_SERVICE_GO_ON));
                 isMainOnPause = false;
             } else if (isUsedMediaPlayer && mRobotMediaPlayer != null && isMpOnpause) {
@@ -1240,7 +1249,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 //                if (!isForeground(mainApkLocalVedioActivity) && !isForeground(mainApkKalaokPlayActivity))
                 if (isForeground(apkVoiceActivity))
                     sendBroadcast(new Intent(ACTION_ROBOT_CAN_NOT_UNDERSTAND));
-                CN_PREVIEW = "我们换个问题聊聊吧";
+                if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
+                    CN_PREVIEW = "请连接网络";
+                } else {
+                    CN_PREVIEW = "我们换个问题聊聊吧";
+                }
                 speakTips();
             }
         } else if (ctrl_str.contains("跳舞") || ctrl_str.contains("跳个舞")) {
@@ -1283,7 +1296,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 //            if (!isForeground(mainApkLocalVedioActivity) && !isForeground(mainApkKalaokPlayActivity))
             if (isForeground(apkVoiceActivity))
                 sendBroadcast(new Intent(ACTION_ROBOT_CAN_NOT_UNDERSTAND));
-            CN_PREVIEW = "我们换个问题聊聊吧";
+            if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
+                CN_PREVIEW = "请连接网络";
+            } else {
+                CN_PREVIEW = "我们换个问题聊聊吧";
+            }
             speakTips();
         }
     }
