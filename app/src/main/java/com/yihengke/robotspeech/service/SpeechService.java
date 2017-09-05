@@ -135,7 +135,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private AudioManager audioManager;
     private int currentVolume, maxVolume;
     private String systemSettingName = "com.yihengke.systemsettings";
-    private String systemMainActivity = "com.yihengke.systemsettings.activity.MainActivityOld";
+    private String systemMainActivity = "com.yihengke.systemsettings.activity.MainActivity";
     private String robotMainActivity = "com.yihengke.robotspeech.activity.MainActivity";
     private String mainApkPackage = "com.wyt.launcher.hkxingkong";
     private String mainApkActivity = "com.wyt.launcher.hkxingkong.XueqianActivity";
@@ -1087,6 +1087,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         CN_PREVIEW = "我是鲁奇亚";
                     } else if (outPut.contains("我叫小驰")) {
                         CN_PREVIEW = "我叫鲁奇亚";
+                    } else if (outPut.contains("因为要做爱")) {
+                        CN_PREVIEW = "也许是上帝的安排吧，为了制造浪漫和痛苦";
                     } else {
                         CN_PREVIEW = outPut;
                     }
