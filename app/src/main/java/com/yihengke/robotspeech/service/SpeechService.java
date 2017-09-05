@@ -379,6 +379,16 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     mAiLocalWakeupDnnEngine.stop();
                     mAiLocalWakeupDnnEngine.destroy();
                     break;
+                case 4:
+                    if (isForeground(robotMainActivity) && isMainOnPause) {
+                        if (isDebugLog) Log.e(TAG, "在跳舞页面问答超出限制次数，并且没有继续语音对话超出10秒，继续跳舞");
+                        sendBroadcast(new Intent(ACTION_DANCE_SERVICE_GO_ON));
+                        isMainOnPause = false;
+                    } else if (isForeground(mainApkKalaokPlayActivity) || isForeground(mainApkLocalVedioActivity)) {
+                        if (isDebugLog) Log.e(TAG, "在本地视频或卡拉OK播放页面问答超出限制次数，并且没有继续语音对话超出10秒，继续播放");
+                        sendBroadcast(new Intent(ACTION_LOCAL_VEDIO_GO_ON));
+                    }
+                    break;
             }
         }
     }
@@ -539,6 +549,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             speakTips();
             asrTimes = 0;
             acquireWakeLock();//实现在对话中不息屏
+            mHandler.removeMessages(4);
             mHandler.removeMessages(2);
             mHandler.sendEmptyMessageDelayed(2, 90 * 1000);
         }
@@ -674,6 +685,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 }
             } else if (isGoSleeping) {
                 if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isGoSleeping = true");
+                mHandler.removeMessages(4);
+                mHandler.sendEmptyMessageDelayed(4, 10 * 1000);
             } else if (isScreenOFF) {
                 if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isScreenOFF = true");
             } else {
@@ -849,6 +862,13 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         isMpOnpause = false;
                         mRobotMediaPlayer.play();
                     }
+                } else if (isForeground(robotMainActivity) && isMainOnPause) {
+                    if (isDebugLog) Log.e(TAG, "没有检测到声音，开始继续跳舞");
+                    sendBroadcast(new Intent(ACTION_DANCE_SERVICE_GO_ON));
+                    isMainOnPause = false;
+                } else if (isForeground(mainApkKalaokPlayActivity) || isForeground(mainApkLocalVedioActivity)) {
+                    if (isDebugLog) Log.e(TAG, "没有检测到声音，开始播放暂停的本地视频或卡拉OK");
+                    sendBroadcast(new Intent(ACTION_LOCAL_VEDIO_GO_ON));
                 } else {
                     CN_PREVIEW = SDS_ERRO_TIP[0];
                     isGoSleeping = true;
@@ -1397,6 +1417,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (asrTimes >= 2) {
                 if (isDebugLog) Log.e(TAG, "现在不是在主页面或表情页面，超过了2次");
                 mAiMixASREngine.stopRecording();
+
+                mHandler.removeMessages(4);
+                mHandler.sendEmptyMessageDelayed(4, 10 * 1000);
             } else {
                 if (isDebugLog) Log.e(TAG, "现在不是在主页面或表情页面，没有到2次");
                 mAiMixASREngine.start();
