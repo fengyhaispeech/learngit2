@@ -795,7 +795,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAiMixASREngine.setPauseTime(0);
         mAiMixASREngine.setUseConf(true);
 //        mAiMixASREngine.setVersion("1.0.4"); //设置资源的版本号
-        mAiMixASREngine.setNoSpeechTimeOut(5 * 1000);
+        mAiMixASREngine.setNoSpeechTimeOut(10 * 1000);
         mAiMixASREngine.setMaxSpeechTimeS(20);
 //        mAiMixASREngine.setDeviceId(Util.getIMEI(this));
         mAiMixASREngine.setCloudVadEnable(false);
