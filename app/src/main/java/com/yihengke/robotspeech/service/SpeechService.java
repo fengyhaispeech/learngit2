@@ -147,7 +147,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private String mainApkDuoyuanActivity = "com.wyt.launcher.hkxingkong.xueqian.FlashDyznActivity";
     private String mainApkMengteActivity = "com.wyt.launcher.hkxingkong.xueqian.FlashMtslActivity";
     private String mainApkQinziActivity = "com.wyt.launcher.hkxingkong.xueqian.FlashMainActivity";
-    private String mainApkCameraActivity = "com.android.camera.CameraActivity";
+    private String mainApkXiaoXuePackage = "com.wyt.zxp.xx";
+    private String mainApkXiaoXueActivity = "com.wyt.gelingpad.lauchermain.MainActivity";
+    private String mainApkCameraPackage = "com.jb.zcamera";
+    private String mainApkCameraActivity = "com.jb.zcamera.camera.MainActivity";
     private String mainApkKalaokPlayActivity = "com.wyt.launcher.hkxingkong.module.mediaplayer.player.VideoPalyActivity";
     private String mainApkLocalVedioActivity = "com.wyt.launcher.hkxingkong.module.mediaplayer.player.VideoPlayerActivity1";
 
@@ -1073,7 +1076,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 controlRobot(input);
                 return true;
             } else if (input.equals("语言启蒙") | input.equals("美图酷拍") | input.equals("小视频") | input.equals("卡拉OK")
-                    | input.equals("多元智能") | input.equals("蒙特梭利") | input.equals("亲子互动") | input.equals("卡拉")) {
+                    | input.equals("多元智能") | input.equals("蒙特梭利") | input.equals("亲子互动") | input.equals("小学教育")
+                    | input.equals("卡拉")) {
                 openMainMenu(input);
                 return true;
             } else {
@@ -1361,10 +1365,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         } else if (ctrl_str.equals("美图酷拍")) {
             CN_PREVIEW = "美图酷拍";
             if (!isForeground(mainApkCameraActivity)) {
-                Intent intent = new Intent(); //调用照相机
-                intent.setAction("android.media.action.STILL_IMAGE_CAMERA");
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
+                startCameraActivity();
             }
         } else if (ctrl_str.equals("小视频")) {
             CN_PREVIEW = "小视频";
@@ -1390,6 +1391,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             CN_PREVIEW = "亲子互动";
             if (!isForeground(mainApkQinziActivity))
                 startMianApkMenuActivity(mainApkQinziActivity);
+        } else if (ctrl_str.equals("小学教育")) {
+            CN_PREVIEW = "小学教育";
+            if (!isForeground(mainApkXiaoXueActivity))
+                startApp(mainApkXiaoXuePackage);
         } else if (ctrl_str.equals("退出") || ctrl_str.equals("返回")) {
             CN_PREVIEW = "已退出";
             if (isForeground(robotMainActivity)) {
@@ -1400,16 +1405,28 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         } else if (ctrl_str.equals("拍照")) {
             if (!isForeground(mainApkCameraActivity)) {
                 CN_PREVIEW = "美图酷拍";
-                Intent intent = new Intent(); //调用照相机
-                intent.setAction("android.media.action.STILL_IMAGE_CAMERA");
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
+                startCameraActivity();
             } else {
                 CN_PREVIEW = "拍照";
                 takePicture();
             }
         }
         speakTips();
+    }
+
+    /**
+     * 打开照相机
+     */
+    private void startCameraActivity() {
+        try {
+            Intent intent = new Intent();
+            ComponentName cn = new ComponentName(mainApkCameraPackage, mainApkCameraActivity);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.setComponent(cn);
+            startActivity(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void isNeedStopRecording() {
