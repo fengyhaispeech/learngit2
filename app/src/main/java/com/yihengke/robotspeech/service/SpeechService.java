@@ -52,6 +52,8 @@ import org.json.JSONObject;
 import java.io.FileNotFoundException;
 import java.util.List;
 import java.util.Random;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * Created by Administrator on 2017/8/3.
@@ -164,6 +166,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
     private int asrTimes;
     private boolean isSystemSleeped;
+    private Timer speechTimer;
+    private boolean isStoped;
+    private String qqHdPackageName = "com.tencent.minihd.qq";
+    private String qqHdAvActivity = "com.tencent.av.ui.AVActivity";
+    private String jiCameraPackageName = "com.jb.zcamera";
 
     @Override
     public void onCreate() {
@@ -188,7 +195,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         if (!isInited) {
             init();
         }
-
+        if (speechTimer == null) {
+            speechTimer = new Timer();
+            speechTimer.scheduleAtFixedRate(new SpeechTiemrTask(), 0, 5 * 1000);
+        }
         return START_STICKY;
     }
 
@@ -222,18 +232,28 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 isScreenOFF = true;
                 if (isAuthed) {
                     if (isDebugLog) Log.e(TAG, "已经获取了授权（息屏后监测判断）,等待唤醒...");
-                    mAiLocalTTSEngine.stop();//暂停播放语音和云端对话
-                    mAiMixASREngine.stopRecording();
-//                    mAiLocalWakeupDnnEngine.start();//息屏后判断如果已经获取了授权，就开始等待唤醒
+                    if (isStoped) {
+                        if (isDebugLog) Log.e(TAG, "监听到屏幕熄灭，但是isStoped == true");
+                        mAiLocalTTSEngine.stop();//暂停播放语音和云端对话
+                        mAiMixASREngine.stopRecording();
+//                      mAiLocalWakeupDnnEngine.start();//息屏后判断如果已经获取了授权，就开始等待唤醒
+                    }
                     mHandler.removeMessages(3);
                     mHandler.sendEmptyMessageDelayed(3, 10 * 60 * 1000);
                 }
-
             } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕点亮,释放wakelock...");
                 isScreenOFF = false;
 //                releaseWakeLock();
                 mHandler.removeMessages(3);
+                if (!isBackground(mContext, qqHdPackageName) || !isBackground(mContext, jiCameraPackageName)) {
+                    if (isDebugLog) Log.e(TAG, "系统之前是深度休眠, 但是相机或QQ在前台，不需要初始化引擎");
+                    return;
+                }
+                if (isForeground(qqHdAvActivity)) {
+                    if (isDebugLog) Log.e(TAG, "系统之前是深度休眠, 但是QQ通话在前台，不需要初始化引擎");
+                    return;
+                }
                 if (isSystemSleeped) {
                     if (isAuthed) {
                         if (isDebugLog) Log.e(TAG, "系统之前是深度休眠，现在要重新初始化引擎");
@@ -692,6 +712,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 mHandler.sendEmptyMessageDelayed(4, 10 * 1000);
             } else if (isScreenOFF) {
                 if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isScreenOFF = true");
+            } else if (isStoped) {
+                if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isStoped = true");
             } else {
                 if (isDebugLog)
                     Log.e(TAG, "RobotAITTSListener onCompletion mAiMixASREngine.start()");
@@ -1547,6 +1569,70 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         t.start();
     }
 
+    /**
+     * 检测是否需要停止语音引擎对麦克风的占用
+     * 当前用到是QQ和极相机
+     */
+    class SpeechTiemrTask extends TimerTask {
+        @Override
+        public void run() {
+            if (!isBackground(mContext, qqHdPackageName) || !isBackground(mContext, jiCameraPackageName)) {
+                if (!isStoped && isAuthed) {
+                    if (isDebugLog) Log.e(TAG, "检测到需要停止唤醒和混合识别引擎");
+                    isStoped = true;
+                    mAiLocalTTSEngine.stop();
+                    mAiMixASREngine.stopRecording();
+                    mAiMixASREngine.destroy();
+                    mAiLocalWakeupDnnEngine.stop();
+                    mAiLocalWakeupDnnEngine.destroy();
+                }
+            } else {
+                if (isStoped && isAuthed) {
+                    if (isForeground(mainApkQinziActivity)) {
+                        if (isDebugLog) Log.e(TAG, "为了避免QQ在切换视频页面时的问题，在这个页面不进行重新init引擎的操作");
+                        return;
+                    }
+                    if (isForeground(qqHdAvActivity)) {
+                        if (isDebugLog) Log.e(TAG, "现在处于QQ视频对话的页面...");
+                        return;
+                    }
+                    if (isDebugLog) Log.e(TAG, "检测到需要开启唤醒引擎");
+                    isStoped = false;
+                    initAiMixASREngine();
+                    initWakeupDnnEngine();
+                }
+            }
+        }
+    }
+
+    /**
+     * 判断指定应用是否在后台
+     *
+     * @param context
+     * @param apkPackageName
+     * @return
+     */
+    private boolean isBackground(Context context, String apkPackageName) {
+        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        List<ActivityManager.RunningAppProcessInfo> appProcesses = activityManager.getRunningAppProcesses();
+        for (ActivityManager.RunningAppProcessInfo appProcess : appProcesses) {
+            if (appProcess.processName.equals(apkPackageName)) {
+                /*
+                BACKGROUND=400 EMPTY=500 FOREGROUND=100
+                GONE=1000 PERCEPTIBLE=130 SERVICE=300 ISIBLE=200
+                 */
+                if (appProcess.importance != ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+//                    Log.i(context.getPackageName(), "处于后台" + appProcess.processName);
+                    return true;
+                } else {
+//                    Log.i(context.getPackageName(), "处于前台" + appProcess.processName);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -1573,6 +1659,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         if (mAiMixASREngine != null) {
             mAiMixASREngine.destroy();
             mAiMixASREngine = null;
+        }
+        if (speechTimer != null) {
+            speechTimer.cancel();
+            speechTimer = null;
         }
         releaseWakeLock();
         if (isDebugLog) Log.e(TAG, "SpeechService destroied...");
