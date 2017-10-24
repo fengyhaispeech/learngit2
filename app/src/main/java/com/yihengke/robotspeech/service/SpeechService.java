@@ -817,7 +817,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAiMixASREngine.putCloudLocalDomainMap("motionctrl", "robotctrl");
         mAiMixASREngine.putCloudLocalDomainMap("command", "robotctrl");
         mAiMixASREngine.setWaitCloudTimeout(2000);
-        mAiMixASREngine.setPauseTime(0);
+        mAiMixASREngine.setPauseTime(500);
         mAiMixASREngine.setUseConf(true);
 //        mAiMixASREngine.setVersion("1.0.4"); //设置资源的版本号
         mAiMixASREngine.setNoSpeechTimeOut(10 * 1000);

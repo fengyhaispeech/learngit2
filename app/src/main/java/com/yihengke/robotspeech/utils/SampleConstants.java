@@ -22,7 +22,7 @@ public class SampleConstants {
     /**
      * 唤醒资源文件
      */
-    public static String res_wake = "nihaoluqiya.bin";
+    public static String res_wake = "nihaoluqiya_xiaolu.bin";
 
     /**
      * 合成资源文件
