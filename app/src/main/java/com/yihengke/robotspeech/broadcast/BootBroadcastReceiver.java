@@ -19,12 +19,12 @@ public class BootBroadcastReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent.getAction().equals(ACTION)) {
-            Log.e("BootBroadcastReceiver", "开机完成的action...");
+            Log.e("BootBroadcastReceiver", "robotspeech开机完成的action...");
 //            Intent mIntent = new Intent(context, SpeechService.class);
 //            context.startService(mIntent);
         }
         if (intent.getAction().equals(ACTION_NOISY)) {
-            Log.e("BootBroadcastReceiver", "开机铃声的action...");
+            Log.e("BootBroadcastReceiver", "robotspeech开机铃声的action...");
             Intent mIntent = new Intent(context, SpeechService.class);
             context.startService(mIntent);
         }
