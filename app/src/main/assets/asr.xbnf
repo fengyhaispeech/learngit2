@@ -5,9 +5,9 @@
 #$OPEN_CLOSE = (开|关|打开|关闭|启动|关上)  /k="OPEN_CLOSE"/ ;
 #$UP_LOW = (调大|调小|调到) /k="UP_LOW"/ ;
 #$PLAYER_STOP = (播放|暂停|停止) /k="PLAYER_STOP"/ ;
-$MOTOR_CTRL = (向前|前进||往前|向后|后退|往后|左转|往左|向左|右转|往右|向右|停止|跳舞|跳个舞|继续) /k="MOTOR_CTRL"/ ;
-$VOLUME_CTRL = (音量大一点|音量小一点|大声一点|小声一点|音量加|音量减) /k="VOLUME_CTRL"/ ;
-$OPEN_SETTING= (打开设置) /k="OPEN_SETTING"/ ;
+$MOTOR_CTRL = (向前|前进|往前|向后|后退|往后|左转|往左|向左|右转|往右|向右|停止|跳舞|跳个舞|继续) /k="MOTOR_CTRL"/ ;
+$VOLUME_CTRL = (音量大一点|音量小一点|再大一点|再小一点|大声一点|小声一点|音量加|音量减) /k="VOLUME_CTRL"/ ;
+$OPEN_SETTING= (打开设置|关机) /k="OPEN_SETTING"/ ;
 $NEXT_UP= (上一首|下一首) /k="NEXT_UP"/ ;
 $OPEN_MENU= (语言启蒙|美图酷拍|小视频|卡拉OK|卡拉|多元智能|蒙特梭利|亲子互动|小学教育|退出|返回|拍照) /k="OPEN_MENU"/ ;
 #$ONEWORDS = (我|把|的) /k="ONEWORDS"/ ;
