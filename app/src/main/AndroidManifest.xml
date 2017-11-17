@@ -41,6 +41,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".activity.TestCotrlActivity"
+            android:exported="true"
+            android:screenOrientation="landscape" />
 
         <service android:name=".service.SpeechService" />
         <receiver android:name=".broadcast.BootBroadcastReceiver">
