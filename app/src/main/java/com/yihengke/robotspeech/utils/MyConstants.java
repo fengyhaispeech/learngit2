@@ -86,4 +86,6 @@ public class MyConstants {
     public static final int wrongedAnim = 8;//委屈
     public static final int confusedAnim = 9;//晕
     public static final int shockAnim = 10;//震惊
+    public static final String ACTION_SDS_ACTIVITY_FINISHED = "action_sds_activity_finished";
+    public static final String ACTION_FINISH_SDS_ACTIVITY = "action_finish_sds_activity";
 }

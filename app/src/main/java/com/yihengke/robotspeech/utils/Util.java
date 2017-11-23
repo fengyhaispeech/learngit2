@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.text.TextUtils;
 import android.view.KeyEvent;
 
+import com.yihengke.robotspeech.activity.SdsActivity;
+
 import java.util.List;
 
 /**
@@ -151,5 +153,11 @@ public class Util {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public static void startVoiceActivity(Context context) {
+        Intent mIntent = new Intent(context, SdsActivity.class);
+        mIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(mIntent);
     }
 }

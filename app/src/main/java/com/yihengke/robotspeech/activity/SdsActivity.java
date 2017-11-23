@@ -79,6 +79,7 @@ public class SdsActivity extends AppCompatActivity {
         mFilter.addAction(MyConstants.ACTION_BIAOQING_ZHUANGTAI);
         mFilter.addAction(Intent.ACTION_POWER_CONNECTED);
         mFilter.addAction(Intent.ACTION_BATTERY_LOW);
+        mFilter.addAction(MyConstants.ACTION_FINISH_SDS_ACTIVITY);
         myReceiver = new MyReceiver();
         registerReceiver(myReceiver, mFilter);
     }
@@ -164,6 +165,8 @@ public class SdsActivity extends AppCompatActivity {
                 startAnim(chargeAnim);
             } else if (action.equals(Intent.ACTION_BATTERY_LOW)) {
                 startAnim(lowBatteryAnim);
+            } else if (action.equals(MyConstants.ACTION_FINISH_SDS_ACTIVITY)) {
+                finish();
             }
         }
     }
@@ -184,6 +187,7 @@ public class SdsActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         myHandler.removeMessages(animWhat);
+        Glide.with(mContext).clear(imageAnim);
         if (myReceiver != null) {
             unregisterReceiver(myReceiver);
         }
@@ -197,6 +201,7 @@ public class SdsActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        sendBroadcast(new Intent(MyConstants.ACTION_SDS_ACTIVITY_FINISHED));
         super.onDestroy();
     }
 }

@@ -55,7 +55,9 @@
             android:exported="true"
             android:screenOrientation="landscape" />
 
-        <service android:name=".service.SpeechService" />
+        <service
+            android:name=".service.SpeechService"
+            android:exported="true" />
         <receiver android:name=".broadcast.BootBroadcastReceiver">
             <intent-filter android:priority="10000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
