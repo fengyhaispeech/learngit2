@@ -9,10 +9,10 @@ import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.view.View;
 import android.widget.ImageView;
 
 import com.bumptech.glide.Glide;
-import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.R;
 import com.yihengke.robotspeech.utils.MyConstants;
 
@@ -23,9 +23,6 @@ import com.yihengke.robotspeech.utils.MyConstants;
  */
 
 public class SdsActivity extends AppCompatActivity {
-
-    private boolean isDebugLog = BuildConfig.DEBUG_LOG;
-    private String Tag = getClass().getSimpleName();
 
     private static final int happyAnim = 0;//开心
     private static final int chargeAnim = 1;//充电
@@ -44,21 +41,37 @@ public class SdsActivity extends AppCompatActivity {
     private MyHandler myHandler;
     private final int animWhat = 0;
     private long animTime = 5000;
+    private long lastTime;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sds);
         imageAnim = (ImageView) findViewById(R.id.image_anim);
-        mContext = this;
+        mContext = getApplicationContext();
         myHandler = new MyHandler();
-        initReceiver();
+        setOncClick();
+    }
+
+    private void setOncClick() {
+        imageAnim.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                long currentTime = System.currentTimeMillis() / 1000;
+                if ((currentTime - lastTime) <= 1) {
+                    finish();
+                } else {
+                    lastTime = currentTime;
+                }
+            }
+        });
     }
 
     @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
+    protected void onResume() {
+        super.onResume();
         InitAnimation();
+        initReceiver();
     }
 
     private void initReceiver() {
@@ -71,69 +84,69 @@ public class SdsActivity extends AppCompatActivity {
     }
 
     private void InitAnimation() {
-        Glide.with(mContext).load("file:///android_asset/happyAnim.gif").into(imageAnim);
+        Glide.with(mContext).asGif().load("file:///android_asset/happyAnim.gif").into(imageAnim);
         myHandler.sendEmptyMessageDelayed(animWhat, animTime);
     }
 
     private void startAnim(int index) {
         switch (index) {
             case happyAnim:
-                Glide.with(mContext).load("file:///android_asset/happyAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/happyAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case chargeAnim:
-                Glide.with(mContext).load("file:///android_asset/chargeAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/chargeAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case shyAnim:
-                Glide.with(mContext).load("file:///android_asset/shyAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/shyAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case cryAnim:
-                Glide.with(mContext).load("file:///android_asset/cryAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/cryAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case coolAnim:
-                Glide.with(mContext).load("file:///android_asset/coolAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/coolAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case lowBatteryAnim:
-                Glide.with(mContext).load("file:///android_asset/lowBatteryAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/lowBatteryAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case angryAnim:
-                Glide.with(mContext).load("file:///android_asset/angryAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/angryAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case naughtyAnim:
-                Glide.with(mContext).load("file:///android_asset/naughtyAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/naughtyAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case wrongedAnim:
-                Glide.with(mContext).load("file:///android_asset/wrongedAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/wrongedAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case confusedAnim:
-                Glide.with(mContext).load("file:///android_asset/confusedAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/confusedAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case shockAnim:
-                Glide.with(mContext).load("file:///android_asset/shockAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/shockAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             default:
-                Glide.with(mContext).load("file:///android_asset/happyAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/happyAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
@@ -168,17 +181,22 @@ public class SdsActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        myHandler.removeMessages(animWhat);
+        if (myReceiver != null) {
+            unregisterReceiver(myReceiver);
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         super.onBackPressed();
         myHandler.removeMessages(animWhat);
-        Glide.with(this).clear(imageAnim);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (myReceiver != null) {
-            unregisterReceiver(myReceiver);
-        }
     }
 }

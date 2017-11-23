@@ -15,9 +15,9 @@ public class MyConstants {
     public static final int MOTOR_STOP = 4;
 
     public static final String HELP_TIP = "有什么我可以帮您？";
-    public static final String[] SDS_ERRO_TIP = new String[]{"你没有事，我就去休息了", "网络异常，请检查网络"};
+    public static final String[] SDS_ERRO_TIP = new String[]{"你没有事，我就去休息了", "我没有听清楚",
+            "请再说一次", "请重新说"};
     public static final String MP_COMPLET = "播放完成";
-    public static final String GO_TO_SLEEP = "我要去休息了";
     public static final String MEDIA_STOPED = "已停止";
 
     public static final String[] HEAD_TIPS = new String[]{"好舒服啊", "好喜欢你呀，是不是觉得我萌萌哒", "好害羞啊",
@@ -68,6 +68,7 @@ public class MyConstants {
     public static final String ACTION_ROBOT_WAKE_UP = "action_robot_wake_up";
     public static final String ACTION_ROBOT_GO_TO_SLEEP = "action_robot_go_to_sleep";
 
+    public static final String qqHdPartPackage = "com.tencent.yhkdeviceapp";//"com.tencent";
     public static final String qqHdPackageName = "com.tencent.yhkdeviceapp";//"com.tencent.minihd.qq";
     public static final String qqHdAvActivity = "com.tencent.yhkdeviceapp.VideoChatActivityHW";//"com.tencent.av.ui.AVActivity";
 
@@ -85,6 +86,4 @@ public class MyConstants {
     public static final int wrongedAnim = 8;//委屈
     public static final int confusedAnim = 9;//晕
     public static final int shockAnim = 10;//震惊
-
-    public static final String ACTION_SHUT_DOWN_SYSTEM = "action_shut_down_system";
 }

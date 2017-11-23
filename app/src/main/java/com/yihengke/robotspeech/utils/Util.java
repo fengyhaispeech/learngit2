@@ -46,6 +46,23 @@ public class Util {
     }
 
     /**
+     * 检测前台activity的类名
+     *
+     * @param context
+     * @return
+     */
+    public static String getForeActivity(Context context) {
+        String activity = null;
+        ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        List<ActivityManager.RunningTaskInfo> list = am.getRunningTasks(1);
+        if (list != null && list.size() > 0) {
+            ComponentName cpn = list.get(0).topActivity;
+            return cpn.getClassName();
+        }
+        return activity;
+    }
+
+    /**
      * 判断指定应用是否在后台
      *
      * @param context
