@@ -401,12 +401,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         if (isDebugLog) Log.e(TAG, "SpeechService init auth...");
 
         mHandler = new MyHandler();
-
-        if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
-            if (isDebugLog) Log.e(TAG, "WiFi网络没有连接,等待网络...");
-        } else {
-            if (isDebugLog) Log.e(TAG, "WiFi网络连接正常，开始判断是否注册，开始初始化");
-
+        if (getSpAuthInited()) {
+            if (isDebugLog) Log.e(TAG, "已经完成过注册了，直接开始初始化");
             isInited = true;
             mAiAuthEngine = AIAuthEngine.getInstance(getApplicationContext());
             //设置自定义路径，请将相关文件预先放到该目录下
@@ -432,13 +428,56 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     initAiLocalGrammarEngine();
                 }
             } else {
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (isDebugLog) Log.e(TAG, "开始执行授权...");
-                        mAiAuthEngine.doAuth();
+                if (isDebugLog) Log.e(TAG, "已经完成过注册了，但是判断isAuthed() = false,重新注册");
+                if (NetworkUtil.isWifiConnected(SpeechService.this)) {
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (isDebugLog) Log.e(TAG, "重新开始注册，开始执行授权...");
+                            mAiAuthEngine.doAuth();
+                        }
+                    }).start();
+                }
+            }
+        } else {
+            if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
+                if (isDebugLog) Log.e(TAG, "WiFi网络没有连接,等待网络...");
+            } else {
+                if (isDebugLog) Log.e(TAG, "WiFi网络连接正常，开始判断是否注册，开始初始化");
+
+                isInited = true;
+                mAiAuthEngine = AIAuthEngine.getInstance(getApplicationContext());
+                //设置自定义路径，请将相关文件预先放到该目录下
+                //mEngine.setResStoragePath("/system/vender/aispeech");
+                try {
+                    mAiAuthEngine.init(AppKey.APPKEY, AppKey.SECRETKEY, "");
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                }// TODO 换成您的APPKEY和SECRETKEY
+
+                mAiAuthEngine.setOnAuthListener(new RobotAIAuthListener());
+                if (mAiAuthEngine.isAuthed()) {
+                    isAuthed = true;
+
+                    initWakeupDnnEngine();
+                    initAILocalTTSEngine();
+                    //有可能是清除了应用的数据或是调试代码卸载了应用
+                    if (getSpGrammarInited()) {
+                        if (isDebugLog) Log.e(TAG, "本地识别资源已经编译过了，直接初始化混合识别引擎");
+                        initAiMixASREngine();//第一次编译资源完成不再需要编译
+                    } else {
+                        if (isDebugLog) Log.e(TAG, "本地识别资源还没编译，开始编译本地识别资源");
+                        initAiLocalGrammarEngine();
                     }
-                }).start();
+                } else {
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (isDebugLog) Log.e(TAG, "开始执行授权...");
+                            mAiAuthEngine.doAuth();
+                        }
+                    }).start();
+                }
             }
         }
     }
@@ -462,6 +501,24 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     }
 
     /**
+     * 获取语音是否已经注册成功
+     *
+     * @return
+     */
+    private boolean getSpAuthInited() {
+        SharedPreferences mPreferences = getSharedPreferences(MyConstants.SP_NAME, MODE_PRIVATE);
+        return mPreferences.getBoolean("spAuthInitedKey", false);
+    }
+
+    /**
+     * 设置语音注册成功
+     */
+    private void setSpAuthInited() {
+        SharedPreferences.Editor editor = mContext.getSharedPreferences(MyConstants.SP_NAME, MODE_PRIVATE).edit();
+        editor.putBoolean("spAuthInitedKey", true).commit();
+    }
+
+    /**
      * 授权监听
      */
     class RobotAIAuthListener implements AIAuthListener {
@@ -474,6 +531,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             initAILocalTTSEngine();
             initAiLocalGrammarEngine();
 //            initAiMixASREngine();
+            setSpAuthInited();
         }
 
         @Override
