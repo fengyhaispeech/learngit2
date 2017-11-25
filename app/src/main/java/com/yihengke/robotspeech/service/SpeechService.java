@@ -189,8 +189,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         mAiLocalTTSEngine.stop();//暂停播放语音和云端对话
                         mAiMixASREngine.stopRecording();
                     }
-                    mHandler.removeMessages(3);
-                    mHandler.sendEmptyMessageDelayed(3, 10 * 60 * 1000);
+//                    mHandler.removeMessages(3);
+//                    mHandler.sendEmptyMessageDelayed(3, 10 * 60 * 1000);
                     dlgDomain = "";
                     contextId = "";
                 }
@@ -198,7 +198,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕点亮...");
                 isScreenOFF = false;
 //                releaseWakeLock();
-                mHandler.removeMessages(3);
+//                mHandler.removeMessages(3);
                 if (!Util.isBackground(mContext, MyConstants.qqHdPackageName)
                         || !Util.isBackground(mContext, MyConstants.mainApkCameraPackage)) {
                     String temp = Util.getForeActivity(mContext);

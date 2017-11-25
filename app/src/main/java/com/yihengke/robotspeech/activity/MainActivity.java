@@ -375,6 +375,7 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
         }
         if (mainReceiver != null) {
             unregisterReceiver(mainReceiver);
+            mainReceiver = null;
         }
         WriteDataUtils.native_ear_light_control(0, 4, 0);
     }
@@ -389,6 +390,10 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
     protected void onDestroy() {
         WriteDataUtils.native_ear_light_control(0, 4, 0);
         sendBroadcast(new Intent(ACTION_DANCE_STOPED));
+        if (mainReceiver != null) {
+            unregisterReceiver(mainReceiver);
+            mainReceiver = null;
+        }
         super.onDestroy();
     }
 }

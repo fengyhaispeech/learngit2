@@ -53,6 +53,7 @@
         <activity
             android:name=".activity.SdsActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:screenOrientation="landscape" />
 
         <service
