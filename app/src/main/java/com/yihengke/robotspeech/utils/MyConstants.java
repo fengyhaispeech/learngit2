@@ -88,4 +88,6 @@ public class MyConstants {
     public static final int shockAnim = 10;//震惊
     public static final String ACTION_SDS_ACTIVITY_FINISHED = "action_sds_activity_finished";
     public static final String ACTION_FINISH_SDS_ACTIVITY = "action_finish_sds_activity";
+    public static final String ACTION_START_SDS_ACTIVITY = "action_start_sds_activity";
+    public static final String KEY_START_SDS_ACTIVITY = "key_start_sds_activity";
 }

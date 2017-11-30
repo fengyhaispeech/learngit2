@@ -51,6 +51,10 @@ public class SdsActivity extends AppCompatActivity {
         mContext = getApplicationContext();
         myHandler = new MyHandler();
         setOncClick();
+        int index = getIntent().getIntExtra(MyConstants.KEY_START_SDS_ACTIVITY, -1);
+        if (index != 0) {
+            sendBroadcast(new Intent(MyConstants.ACTION_START_SDS_ACTIVITY));
+        }
     }
 
     private void setOncClick() {

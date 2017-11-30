@@ -4,22 +4,19 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.drawable.AnimationDrawable;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
-import android.view.animation.RotateAnimation;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.R;
-import com.yihengke.robotspeech.utils.RotateAnim;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
 
 import java.util.Random;
@@ -51,13 +48,11 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
     private int[] ljl = new int[]{0, 2, 3, 1, 2, 1, 0, 3, 0, 3, 1, 2};
     private int[] fsj = new int[]{2, 0, 1, 2, 1, 0, 3, 1, 2, 3, 0, 2};
 
-    private Timer mTimer, mAnimTimer, mBlinkTimer;
+    private Timer mTimer;
 
-    private ImageView imageOpenEye, imageBlinkEye, imageLeftEye, imageRightEye, imageRedUp;
+    private AnimationDrawable animationDrawable;
+    private ImageView imageDance;
     private FrameLayout frameLayout;
-    private MyHandler handler;
-    private int currentAnim = 0;
-    private int currentEye = -1;
     private long lastTime;
 
     @Override
@@ -75,18 +70,14 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
         currentSong = index;
         initMedia(currentSong);
 
-        handler = new MyHandler();
         initViews();
 //        startService(new Intent(MainActivity.this, SpeechService.class));
         initReceiver();
     }
 
     private void initViews() {
-        imageOpenEye = (ImageView) findViewById(R.id.image_open_eye);
-        imageBlinkEye = (ImageView) findViewById(R.id.image_blink_eye);
-        imageLeftEye = (ImageView) findViewById(R.id.image_left_eye);
-        imageRightEye = (ImageView) findViewById(R.id.image_right_eye);
-        imageRedUp = (ImageView) findViewById(R.id.image_red_up);
+        imageDance = (ImageView) findViewById(R.id.image_dance_anim);
+        startAnimation();
         frameLayout = (FrameLayout) findViewById(R.id.fl_click_layout);
         frameLayout.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -104,93 +95,6 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
                 }
             }
         });
-
-        startAnim();
-    }
-
-    /**
-     * 开始动画执行
-     */
-    private void startAnim() {
-        if (mAnimTimer == null)
-            mAnimTimer = new Timer();
-//        mAnimTimer.scheduleAtFixedRate(new AnimationTask(), 0, 10 * 1000);
-        startBlinkEyes();
-    }
-
-    /**
-     * 动画执行的定时任务
-     */
-    class AnimationTask extends TimerTask {
-        @Override
-        public void run() {
-            currentAnim++;
-            if (currentAnim > 1) {
-                currentAnim = 0;
-            }
-            handler.sendEmptyMessage(0);
-        }
-    }
-
-    /**
-     * 开始执行眨眼动画
-     */
-    private void startBlinkEyes() {
-        if (mBlinkTimer == null)
-            mBlinkTimer = new Timer();
-        mBlinkTimer.scheduleAtFixedRate(new BlinkTask(), 0, 1000);
-    }
-
-    /**
-     * 停止眨眼动画
-     */
-    private void stopBlinkEyes() {
-        if (mBlinkTimer != null) {
-            mBlinkTimer.cancel();
-            mBlinkTimer = null;
-        }
-
-        imageOpenEye.setVisibility(View.GONE);
-        imageBlinkEye.setVisibility(View.GONE);
-    }
-
-    /**
-     * 眨眼动画的定时任务
-     */
-    class BlinkTask extends TimerTask {
-        @Override
-        public void run() {
-            currentEye++;
-            if (currentEye > 2) {
-                currentEye = 0;
-            }
-            handler.sendEmptyMessage(1);
-        }
-    }
-
-    /**
-     * 开始执行旋转动画
-     */
-    private void startRotateAnim() {
-        imageLeftEye.setVisibility(View.VISIBLE);
-        imageRightEye.setVisibility(View.VISIBLE);
-        imageRedUp.setVisibility(View.VISIBLE);
-
-        RotateAnimation animation = RotateAnim.loadAnimation();
-        imageLeftEye.startAnimation(animation);
-        imageRightEye.startAnimation(animation);
-    }
-
-    /**
-     * 停止旋转动画
-     */
-    private void stopRoateAnim() {
-        imageLeftEye.clearAnimation();
-        imageRightEye.clearAnimation();
-
-        imageLeftEye.setVisibility(View.GONE);
-        imageRightEye.setVisibility(View.GONE);
-        imageRedUp.setVisibility(View.GONE);
     }
 
     /**
@@ -272,39 +176,6 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
 
     }
 
-    class MyHandler extends Handler {
-        @Override
-        public void handleMessage(Message msg) {
-            super.handleMessage(msg);
-            switch (msg.what) {
-                case 0:
-                    if (currentAnim == 0) {
-                        stopBlinkEyes();
-                        startRotateAnim();
-                    } else if (currentAnim == 1) {
-                        stopRoateAnim();
-                        startBlinkEyes();
-                    }
-                    break;
-                case 1:
-                    if (currentEye == 0) {
-
-                    } else if (currentEye == 1) {
-                        imageOpenEye.setVisibility(View.GONE);
-                        imageBlinkEye.setVisibility(View.VISIBLE);
-                    } else if (currentEye == 2) {
-                        imageOpenEye.setVisibility(View.VISIBLE);
-                        imageBlinkEye.setVisibility(View.GONE);
-                    }
-                    break;
-                case 2:
-
-                    break;
-            }
-
-        }
-    }
-
     private void initReceiver() {
         mainReceiver = new MainReceiver();
         IntentFilter mFilter = new IntentFilter();
@@ -365,19 +236,27 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
             mTimer.cancel();
             mTimer = null;
         }
-        if (mAnimTimer != null) {
-            mAnimTimer.cancel();
-            mAnimTimer = null;
-        }
-        if (mBlinkTimer != null) {
-            mBlinkTimer.cancel();
-            mBlinkTimer = null;
-        }
         if (mainReceiver != null) {
             unregisterReceiver(mainReceiver);
             mainReceiver = null;
         }
         WriteDataUtils.native_ear_light_control(0, 4, 0);
+    }
+
+    private void startAnimation() {
+        if (animationDrawable == null) {
+            imageDance.setImageResource(R.drawable.dance_image);
+            animationDrawable = (AnimationDrawable) imageDance.getDrawable();
+            animationDrawable.start();
+        } else {
+            animationDrawable.start();
+        }
+    }
+
+    private void stopAnimation() {
+        if (animationDrawable != null) {
+            animationDrawable.stop();
+        }
     }
 
     @Override
@@ -388,12 +267,9 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
 
     @Override
     protected void onDestroy() {
-        WriteDataUtils.native_ear_light_control(0, 4, 0);
         sendBroadcast(new Intent(ACTION_DANCE_STOPED));
-        if (mainReceiver != null) {
-            unregisterReceiver(mainReceiver);
-            mainReceiver = null;
-        }
+        destroyFields();
+        stopAnimation();
         super.onDestroy();
     }
 }

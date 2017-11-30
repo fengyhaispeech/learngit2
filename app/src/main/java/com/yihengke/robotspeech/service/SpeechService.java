@@ -170,6 +170,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mFilter.addAction(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION);
 
         mFilter.addAction(MyConstants.ACTION_SDS_ACTIVITY_FINISHED);
+        mFilter.addAction(MyConstants.ACTION_START_SDS_ACTIVITY);
 
         registerReceiver(mRobotReceiver, mFilter);
         if (isDebugLog) Log.e(TAG, "registerReceiver......");
@@ -191,8 +192,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     }
 //                    mHandler.removeMessages(3);
 //                    mHandler.sendEmptyMessageDelayed(3, 10 * 60 * 1000);
-                    dlgDomain = "";
-                    contextId = "";
                 }
             } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕点亮...");
@@ -254,6 +253,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         mAiMixASREngine.cancel();
                         mAiLocalTTSEngine.stop();
                         sdsStartTime = System.currentTimeMillis();
+                        dlgDomain = "";
+                        contextId = "";
                         speakTips();
                         lastTime = currentTime;
                     }
@@ -294,6 +295,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         mAiMixASREngine.cancel();
                         mAiLocalTTSEngine.stop();
                         sdsStartTime = System.currentTimeMillis();
+                        dlgDomain = "";
+                        contextId = "";
                         speakTips();
                         lastTime = currentTime;
                     }
@@ -344,6 +347,15 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     mAiMixASREngine.cancel();
                     mAiMixASREngine.stopRecording();
                 }
+            } else if (action.equals(MyConstants.ACTION_START_SDS_ACTIVITY)) {
+                if (isAuthed && mAiMixASREngine != null) {
+                    if (isDebugLog) Log.e(TAG, "sdsActivity start from main apk");
+                    isGoSleeping = false;
+                    mAiMixASREngine.cancel();
+                    mAiLocalTTSEngine.stop();
+                    sdsStartTime = System.currentTimeMillis();
+                    mAiMixASREngine.start();
+                }
             }
         }
     }
@@ -386,6 +398,14 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         if (isDebugLog) Log.e(TAG, "在本地视频或卡拉OK播放页面问答超出限制次数，并且没有继续语音对话超出10秒，继续播放");
                         sendBroadcast(new Intent(MyConstants.ACTION_LOCAL_VEDIO_GO_ON));
                     }*/
+                    break;
+                case 5:
+                    mAiLocalWakeupDnnEngine.init(mContext, new RobotAILocalWakeupDnnListener(), AppKey.APPKEY, AppKey.SECRETKEY);
+                    break;
+                case 6:
+                    mAiMixASREngine.init(mContext, new RobotAIASRListener(), AppKey.APPKEY, AppKey.SECRETKEY);
+                    break;
+                default:
                     break;
             }
         }
@@ -565,6 +585,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             } else {
                 if (isDebugLog) Log.e(TAG, "唤醒引擎初始化 失败..." + status);
 //                mAiLocalWakeupDnnEngine.init(mContext, new RobotAILocalWakeupDnnListener(), AppKey.APPKEY, AppKey.SECRETKEY);
+                mHandler.sendEmptyMessageDelayed(5, 3000);
             }
         }
 
@@ -587,6 +608,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             mAiMixASREngine.stopRecording();
             mAiLocalTTSEngine.stop();
             sdsStartTime = System.currentTimeMillis();
+            dlgDomain = "";
+            contextId = "";
             //播放提示语
             CN_PREVIEW = MyConstants.HELP_TIP;
             speakTips();
@@ -874,7 +897,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 //                mAiMixASREngine.start();
             } else {
                 if (isDebugLog) Log.e(TAG, "mAiMixASREngine 初始化失败");
-//                mAiMixASREngine.init(new RobotAIASRListener());
+//                mAiMixASREngine.init(mContext, new RobotAIASRListener(), AppKey.APPKEY, AppKey.SECRETKEY);
+                mHandler.sendEmptyMessageDelayed(6, 3000);
             }
         }
 
@@ -940,8 +964,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     }
                     speakTips();
                 }
-                dlgDomain = "";
-                contextId = "";
             } else {
                 mAiLocalTTSEngine.stop();
                 CN_PREVIEW = MyConstants.HELP_TIP;
@@ -1052,21 +1074,13 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             return false;
         }
         contextId = sdsJsonObj.optString("contextId");
-        if (!TextUtils.isEmpty(contextId)) {
-            if (isDebugLog) Log.e(TAG, "contextId == " + contextId);
-            mAiMixASREngine.setContextId(contextId);
-        }
+
         JSONObject semanticsObj = result.optJSONObject("semantics");
         if (semanticsObj != null) {
             JSONObject requestObj = semanticsObj.optJSONObject("request");
             if (requestObj != null) {
                 dlgDomain = requestObj.optString("domain");
             }
-        }
-        if (!TextUtils.isEmpty(dlgDomain)) {
-            if (isDebugLog) Log.e(TAG, "dlgDomain == " + dlgDomain);
-            mAiMixASREngine.setDlgDomain(dlgDomain);
-            mAiMixASREngine.setPrevDomain(dlgDomain);
         }
 
         if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
@@ -1514,33 +1528,24 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     }
 
     private void isNeedStopRecording() {
-        /*if (!Util.isForeground(mContext, MyConstants.mainApkActivity) && !Util.isForeground(mContext, MyConstants.apkVoiceActivity)) {
-            if (asrTimes >= 2) {
-                if (isDebugLog) Log.e(TAG, "现在不是在主页面或表情页面，超过了2次");
-                mAiMixASREngine.stopRecording();
-
-                mHandler.removeMessages(4);
-                mHandler.sendEmptyMessageDelayed(4, 10 * 1000);
-            } else {
-                if (isDebugLog) Log.e(TAG, "现在不是在主页面或表情页面，没有到2次");
-                mAiMixASREngine.start();
-            }
-        } else {
-            if (asrTimes >= 6) {
-                if (isDebugLog) Log.e(TAG, "现在是在主页面或表情页面，超过了6次");
-                mAiMixASREngine.stopRecording();
-            } else {
-                if (isDebugLog) Log.e(TAG, "现在是在主页面或表情页面，没有到6次");
-                mAiMixASREngine.start();
-            }
-        }*/
         if (Util.isForeground(mContext, MyConstants.apkVoiceActivity)) {
             long currentTime = System.currentTimeMillis();
             if (((currentTime - sdsStartTime) / 1000) <= 40) {
                 if (isDebugLog) Log.e(TAG, "现在在表情页面，没有超时，开始下一次识别");
+                if (contextId != null) {
+                    if (isDebugLog) Log.e(TAG, "contextId == " + contextId);
+                    mAiMixASREngine.setContextId(contextId);
+                }
+                if (dlgDomain != null) {
+                    if (isDebugLog) Log.e(TAG, "dlgDomain == " + dlgDomain);
+                    mAiMixASREngine.setDlgDomain(dlgDomain);
+                    mAiMixASREngine.setPrevDomain(dlgDomain);
+                }
                 mAiMixASREngine.start();
             } else {
                 if (isDebugLog) Log.e(TAG, "现在在表情页面，已超时");
+                mAiMixASREngine.cancel();
+                mAiMixASREngine.stopRecording();
             }
         }
     }
@@ -1582,35 +1587,35 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     class SpeechTiemrTask extends TimerTask {
         @Override
         public void run() {
-            if (!Util.isBackground(mContext, MyConstants.qqHdPackageName)
-                    || !Util.isBackground(mContext, MyConstants.mainApkCameraPackage)) {
-                String temp = Util.getForeActivity(mContext);
-                if (!TextUtils.isEmpty(temp)) {
-                    if (!temp.contains(MyConstants.qqHdPartPackage) &&
-                            !temp.contains(MyConstants.mainApkCameraPackage)) {
-                        return;
+            String temp = Util.getForeActivity(mContext);
+            if (!TextUtils.isEmpty(temp)) {
+                if (temp.contains(MyConstants.qqHdPartPackage) || temp.contains(MyConstants.mainApkCameraPackage)) {
+                    if (isDebugLog) Log.e(TAG, "检测到qq或相机在前台");
+                    if (isDebugLog) Log.e(TAG, "temp = " + temp);
+                    if (!isStoped && isAuthed) {
+                        if (isDebugLog) Log.e(TAG, "检测到需要停止唤醒和混合识别引擎");
+                        isStoped = true;
+                        mAiLocalTTSEngine.stop();
+                        mHandler.removeMessages(5);
+                        mAiMixASREngine.stopRecording();
+                        mAiMixASREngine.destroy();
+                        mAiMixASREngine = null;
+                        mHandler.removeMessages(6);
+                        mAiLocalWakeupDnnEngine.stop();
+                        mAiLocalWakeupDnnEngine.destroy();
+                        mAiLocalWakeupDnnEngine = null;
                     }
-                }
-                if (isDebugLog) Log.e(TAG, "检测到qq或相机在前台");
-                if (!isStoped && isAuthed) {
-                    if (isDebugLog) Log.e(TAG, "检测到需要停止唤醒和混合识别引擎");
-                    isStoped = true;
-                    mAiLocalTTSEngine.stop();
-                    mAiMixASREngine.stopRecording();
-                    mAiMixASREngine.destroy();
-                    mAiLocalWakeupDnnEngine.stop();
-                    mAiLocalWakeupDnnEngine.destroy();
-                }
-            } else {
-                if (isStoped && isAuthed) {
-                    if (Util.isForeground(mContext, MyConstants.qqHdAvActivity)) {
-                        if (isDebugLog) Log.e(TAG, "现在处于QQ视频对话的页面...");
-                        return;
+                } else {
+                    if (isStoped && isAuthed) {
+                        if (Util.isForeground(mContext, MyConstants.qqHdAvActivity)) {
+                            if (isDebugLog) Log.e(TAG, "现在处于QQ视频对话的页面...");
+                            return;
+                        }
+                        if (isDebugLog) Log.e(TAG, "检测到需要开启唤醒引擎");
+                        isStoped = false;
+                        initAiMixASREngine();
+                        initWakeupDnnEngine();
                     }
-                    if (isDebugLog) Log.e(TAG, "检测到需要开启唤醒引擎");
-                    isStoped = false;
-                    initAiMixASREngine();
-                    initWakeupDnnEngine();
                 }
             }
         }

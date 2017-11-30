@@ -158,6 +158,7 @@ public class Util {
     public static void startVoiceActivity(Context context) {
         Intent mIntent = new Intent(context, SdsActivity.class);
         mIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mIntent.putExtra(MyConstants.KEY_START_SDS_ACTIVITY, 0);
         context.startActivity(mIntent);
     }
 }
