@@ -114,12 +114,12 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private long lastTime;
 
     private int asrTimes;
-    private boolean isSystemSleeped;
     private Timer speechTimer;
     private boolean isStoped;
 
     private String dlgDomain, contextId;
     private long sdsStartTime;
+    private int asrInitStatus = -1;
 
     @Override
     public void onCreate() {
@@ -183,46 +183,22 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (action.equals(Intent.ACTION_SCREEN_OFF)) {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕关闭...");
                 isScreenOFF = true;
-                if (isAuthed) {
+                if (isAuthed && !isStoped) {
                     if (isDebugLog) Log.e(TAG, "已经获取了授权（息屏后监测判断）,等待唤醒...");
-                    if (isStoped) {
-                        if (isDebugLog) Log.e(TAG, "监听到屏幕熄灭，但是isStoped == true");
-                        mAiLocalTTSEngine.stop();//暂停播放语音和云端对话
+                    mAiLocalTTSEngine.stop();//暂停播放语音和云端对话
+                    if (asrInitStatus == 0) {
+                        mAiMixASREngine.cancel();
                         mAiMixASREngine.stopRecording();
                     }
-//                    mHandler.removeMessages(3);
-//                    mHandler.sendEmptyMessageDelayed(3, 10 * 60 * 1000);
                 }
             } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
                 if (isDebugLog) Log.e(TAG, "监听到屏幕点亮...");
                 isScreenOFF = false;
-//                releaseWakeLock();
-//                mHandler.removeMessages(3);
-                if (!Util.isBackground(mContext, MyConstants.qqHdPackageName)
-                        || !Util.isBackground(mContext, MyConstants.mainApkCameraPackage)) {
-                    String temp = Util.getForeActivity(mContext);
-                    if (!TextUtils.isEmpty(temp)) {
-                        if (temp.contains(MyConstants.qqHdPartPackage) ||
-                                temp.contains(MyConstants.mainApkCameraPackage)) {
-                            if (isDebugLog) Log.e(TAG, "系统之前是深度休眠, 但是相机或QQ在前台，不需要初始化引擎");
-                            return;
-                        }
-                    }
-                }
-                if (Util.isForeground(mContext, MyConstants.qqHdAvActivity)) {
-                    if (isDebugLog) Log.e(TAG, "系统之前是深度休眠, 但是QQ通话在前台，不需要初始化引擎");
-                    return;
-                }
-                if (isSystemSleeped) {
-                    if (isAuthed) {
-                        if (isDebugLog) Log.e(TAG, "系统之前是深度休眠，现在要重新初始化引擎");
-                        initWakeupDnnEngine();
-                        initAiMixASREngine();
-                    }
-                }
-                isSystemSleeped = false;
             } else if (action.equals(MyConstants.HEAD_TOUCH_ACTION)) {
                 if (isDebugLog) Log.e(TAG, "监听到触摸机器人 头 的广播");
+                if (isStoped) {
+                    return;
+                }
                 Random mRandom = new Random();
                 int index = mRandom.nextInt(MyConstants.HEAD_TIPS.length);
                 CN_PREVIEW = MyConstants.HEAD_TIPS[index];
@@ -261,6 +237,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 }
             } else if (action.equals(MyConstants.HAND_TOUCH_ACTION)) {
                 if (isDebugLog) Log.e(TAG, "监听到触摸机器人 手 的广播");
+                if (isStoped) {
+                    return;
+                }
                 Random mRandom = new Random();
                 int index = mRandom.nextInt(MyConstants.HAND_TIPS.length);
                 CN_PREVIEW = MyConstants.HAND_TIPS[index];
@@ -343,12 +322,18 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 CN_PREVIEW = "跳舞结束";
                 speakTips();
             } else if (action.equals(MyConstants.ACTION_SDS_ACTIVITY_FINISHED)) {
-                if (mAiMixASREngine != null) {
-                    mAiMixASREngine.cancel();
-                    mAiMixASREngine.stopRecording();
+                if (isAuthed) {
+                    if (mAiMixASREngine != null && asrInitStatus == 0) {
+                        mAiMixASREngine.cancel();
+                        mAiMixASREngine.stopRecording();
+                    }
+                    if (isUsedMediaPlayer && mRobotMediaPlayer != null && !isMpOnpause) {
+                        mRobotMediaPlayer.stop();
+                        isUsedMediaPlayer = false;
+                    }
                 }
             } else if (action.equals(MyConstants.ACTION_START_SDS_ACTIVITY)) {
-                if (isAuthed && mAiMixASREngine != null) {
+                if (isAuthed && mAiMixASREngine != null && asrInitStatus == 0) {
                     if (isDebugLog) Log.e(TAG, "sdsActivity start from main apk");
                     isGoSleeping = false;
                     mAiMixASREngine.cancel();
@@ -379,30 +364,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     releaseWakeLock();
                     break;
                 case 3:
-                    if (isDebugLog) Log.e(TAG, "息屏超过指定时间，销毁引擎使系统进入深度休眠");
-                    isSystemSleeped = true;
-                    mAiLocalTTSEngine.stop();
-//                    mAiLocalTTSEngine.destroy();
-                    mAiMixASREngine.stopRecording();
-                    mAiMixASREngine.destroy();
-                    mAiLocalWakeupDnnEngine.stop();
-                    mAiLocalWakeupDnnEngine.destroy();
-                    break;
-                case 4:
-                    /*if (Util.isForeground(mContext, MyConstants.robotMainActivity) && isMainOnPause) {
-                        if (isDebugLog) Log.e(TAG, "在跳舞页面问答超出限制次数，并且没有继续语音对话超出10秒，继续跳舞");
-                        sendBroadcast(new Intent(MyConstants.ACTION_DANCE_SERVICE_GO_ON));
-                        isMainOnPause = false;
-                    } else if (Util.isForeground(mContext, MyConstants.mainApkKalaokPlayActivity)
-                            || Util.isForeground(mContext, MyConstants.mainApkLocalVedioActivity)) {
-                        if (isDebugLog) Log.e(TAG, "在本地视频或卡拉OK播放页面问答超出限制次数，并且没有继续语音对话超出10秒，继续播放");
-                        sendBroadcast(new Intent(MyConstants.ACTION_LOCAL_VEDIO_GO_ON));
-                    }*/
-                    break;
-                case 5:
+                    if (isDebugLog) Log.e(TAG, "唤醒引擎初始化失败，重新初始化...");
                     mAiLocalWakeupDnnEngine.init(mContext, new RobotAILocalWakeupDnnListener(), AppKey.APPKEY, AppKey.SECRETKEY);
                     break;
-                case 6:
+                case 4:
+                    if (isDebugLog) Log.e(TAG, "混合识别引擎初始化失败，重新初始化...");
                     mAiMixASREngine.init(mContext, new RobotAIASRListener(), AppKey.APPKEY, AppKey.SECRETKEY);
                     break;
                 default:
@@ -585,7 +551,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             } else {
                 if (isDebugLog) Log.e(TAG, "唤醒引擎初始化 失败..." + status);
 //                mAiLocalWakeupDnnEngine.init(mContext, new RobotAILocalWakeupDnnListener(), AppKey.APPKEY, AppKey.SECRETKEY);
-                mHandler.sendEmptyMessageDelayed(5, 3000);
+                mHandler.sendEmptyMessageDelayed(3, 3000);
             }
         }
 
@@ -758,8 +724,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 }
             } else if (isGoSleeping) {
                 if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isGoSleeping = true");
-                mHandler.removeMessages(4);
-                mHandler.sendEmptyMessageDelayed(4, 10 * 1000);
             } else if (isScreenOFF) {
                 if (isDebugLog) Log.e(TAG, "RobotAITTSListener onCompletion isScreenOFF = true");
             } else if (isStoped) {
@@ -892,13 +856,14 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         @Override
         public void onInit(int staus) {
             if (isDebugLog) Log.e(TAG, "mAiMixASREngine onIinit staus = " + staus);
+            asrInitStatus = staus;
             if (staus == AIConstant.OPT_SUCCESS) {
                 if (isDebugLog) Log.e(TAG, "mAiMixASREngine 初始化成功");
 //                mAiMixASREngine.start();
             } else {
                 if (isDebugLog) Log.e(TAG, "mAiMixASREngine 初始化失败");
 //                mAiMixASREngine.init(mContext, new RobotAIASRListener(), AppKey.APPKEY, AppKey.SECRETKEY);
-                mHandler.sendEmptyMessageDelayed(6, 3000);
+                mHandler.sendEmptyMessageDelayed(4, 3000);
             }
         }
 
@@ -934,13 +899,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         isGoSleeping = true;
                         isUsedMediaPlayer = false;
                         isMpOnpause = false;
-//                        if (Util.isForeground(mContext, MyConstants.apkVoiceActivity))
-//                            sendBroadcast(new Intent(MyConstants.ACTION_ROBOT_GO_TO_SLEEP));
                         speakTips();
-                    } else {
+                    }/* else {
                         isMpOnpause = false;
                         mRobotMediaPlayer.play();
-                    }
+                    }*/
                 } else if (Util.isForeground(mContext, MyConstants.robotMainActivity) && isMainOnPause) {
                     if (isDebugLog) Log.e(TAG, "没有检测到声音，开始继续跳舞");
                     sendBroadcast(new Intent(MyConstants.ACTION_DANCE_SERVICE_GO_ON));
@@ -956,7 +919,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     isUsedMediaPlayer = false;
                     isMpOnpause = false;
                     if (Util.isForeground(mContext, MyConstants.apkVoiceActivity)) {
-//                        sendBroadcast(new Intent(MyConstants.ACTION_ROBOT_GO_TO_SLEEP));
                         Random mRandom = new Random();
                         int index = mRandom.nextInt(MyConstants.TimeoutNoTouch.length);
                         CN_PREVIEW = MyConstants.TimeoutNoTouch[index];
@@ -1595,15 +1557,18 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     if (!isStoped && isAuthed) {
                         if (isDebugLog) Log.e(TAG, "检测到需要停止唤醒和混合识别引擎");
                         isStoped = true;
+                        if (isUsedMediaPlayer && mRobotMediaPlayer != null && !isMpOnpause) {
+                            mRobotMediaPlayer.stop();
+                            isUsedMediaPlayer = false;
+                        }
                         mAiLocalTTSEngine.stop();
                         mHandler.removeMessages(5);
+                        mAiMixASREngine.cancel();
                         mAiMixASREngine.stopRecording();
                         mAiMixASREngine.destroy();
-                        mAiMixASREngine = null;
                         mHandler.removeMessages(6);
                         mAiLocalWakeupDnnEngine.stop();
                         mAiLocalWakeupDnnEngine.destroy();
-                        mAiLocalWakeupDnnEngine = null;
                     }
                 } else {
                     if (isStoped && isAuthed) {
