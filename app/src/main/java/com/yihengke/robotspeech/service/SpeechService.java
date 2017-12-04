@@ -1,14 +1,13 @@
 package com.yihengke.robotspeech.service;
 
-import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Typeface;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -21,7 +20,10 @@ import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
+import android.widget.TextView;
 
 import com.aispeech.AIError;
 import com.aispeech.AIResult;
@@ -39,6 +41,7 @@ import com.aispeech.export.listeners.AITTSListener;
 import com.aispeech.speech.AIAuthEngine;
 import com.yihengke.robotspeech.AppKey;
 import com.yihengke.robotspeech.BuildConfig;
+import com.yihengke.robotspeech.R;
 import com.yihengke.robotspeech.activity.MainActivity;
 import com.yihengke.robotspeech.utils.GrammarHelper;
 import com.yihengke.robotspeech.utils.MPOnCompletionListener;
@@ -46,8 +49,10 @@ import com.yihengke.robotspeech.utils.MyConstants;
 import com.yihengke.robotspeech.utils.NetworkUtil;
 import com.yihengke.robotspeech.utils.RobotMediaPlayer;
 import com.yihengke.robotspeech.utils.SampleConstants;
+import com.yihengke.robotspeech.utils.TypefaceUtil;
 import com.yihengke.robotspeech.utils.Util;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
+import com.yihengke.robotspeech.view.CustomDialog;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -127,6 +132,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private String dlgDomain, contextId;
     private long sdsStartTime;
     private int asrInitStatus = -1;
+    private Dialog mShutdownDialog;
 
     @Override
     public void onCreate() {
@@ -1633,18 +1639,38 @@ public class SpeechService extends Service implements MPOnCompletionListener {
      * 弹框提示是否关机
      */
     private void showShutDownDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getApplicationContext());
-        builder.setMessage("\n小主人，您确定要关机么\n");
-        builder.setNegativeButton("取消", null);
-        builder.setPositiveButton("确认", new DialogInterface.OnClickListener() {
+        if (mShutdownDialog != null && mShutdownDialog.isShowing()) {
+            return;
+        }
+        View view = View.inflate(mContext, R.layout.layout_shutdown_dialog, null);
+        CustomDialog.Builder customBuilder = new CustomDialog.Builder(mContext);
+        mShutdownDialog = customBuilder.create();
+        mShutdownDialog.getWindow().setLayout(772, 468);
+        mShutdownDialog.getWindow().setContentView(view);
+        mShutdownDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
+        mShutdownDialog.setCanceledOnTouchOutside(false);
+        mShutdownDialog.show();
+        TextView tvAlertUp = (TextView) view.findViewById(R.id.tv_alert_up);
+        TextView tvAlertDown = (TextView) view.findViewById(R.id.tv_alert_down);
+        Button btnConfirm = (Button) view.findViewById(R.id.btn_confirm);
+        Button btnCancel = (Button) view.findViewById(R.id.btn_cancel);
+        Typeface mTypeface = TypefaceUtil.getZhanku(mContext);
+        tvAlertUp.setTypeface(mTypeface);
+        tvAlertDown.setTypeface(mTypeface);
+        btnConfirm.setTypeface(mTypeface);
+        btnCancel.setTypeface(mTypeface);
+        btnConfirm.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(DialogInterface dialog, int which) {
+            public void onClick(View v) {
                 shutDown();
             }
         });
-        final Dialog dialog = builder.create();
-        dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
-        dialog.show();
+        btnCancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mShutdownDialog.dismiss();
+            }
+        });
     }
 
     private void shutDown() {

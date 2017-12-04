@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="772dp"
+    android:layout_height="468dp"
+    android:background="@mipmap/shutdownbg">
+
+    <TextView
+        android:id="@+id/tv_alert_up"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/tv_alert_down"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="15dp"
+        android:text="小主人"
+        android:textColor="@color/colorBiaoQingBg"
+        android:textSize="16pt" />
+
+    <TextView
+        android:id="@+id/tv_alert_down"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignStart="@+id/tv_alert_up"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="40dp"
+        android:text="你确定要关机吗"
+        android:textColor="@color/colorBiaoQingBg"
+        android:textSize="16pt" />
+
+    <Button
+        android:id="@+id/btn_confirm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignStart="@+id/tv_alert_down"
+        android:layout_below="@+id/tv_alert_down"
+        android:layout_marginTop="60dp"
+        android:background="@drawable/shutdown_button_bg"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:text="确 定"
+        android:textSize="11pt" />
+
+    <Button
+        android:id="@+id/btn_cancel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@+id/btn_confirm"
+        android:layout_marginStart="60dp"
+        android:layout_toEndOf="@+id/btn_confirm"
+        android:background="@drawable/shutdown_button_bg"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:text="取 消"
+        android:textSize="11pt" />
+</RelativeLayout>
