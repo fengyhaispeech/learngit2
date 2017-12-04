@@ -17,6 +17,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.PowerManager;
+import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
@@ -51,7 +52,14 @@ import com.yihengke.robotspeech.utils.WriteDataUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -113,7 +121,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
     private long lastTime;
 
-    private int asrTimes;
     private Timer speechTimer;
     private boolean isStoped;
 
@@ -124,9 +131,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     @Override
     public void onCreate() {
         super.onCreate();
-        if (isDebugLog) Log.e(TAG, "service created ...");
+        if (isDebugLog) Log.e(TAG, "SpeechService service created ...");
         mContext = this;
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        mHandler = new MyHandler();
         initReceiver();
         init();
         startForeground(0, null);
@@ -140,9 +148,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (isDebugLog) Log.e(TAG, "service onStartCommand ...");
+        if (isDebugLog) Log.e(TAG, "SpeechService service onStartCommand ...");
         if (!isInited) {
-            if (isDebugLog) Log.e(TAG, "service onStartCommand ...isInited == false");
+            if (isDebugLog) Log.e(TAG, "SpeechService service onStartCommand ...isInited == false");
             init();
         }
         if (speechTimer == null) {
@@ -224,7 +232,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                                 || Util.isForeground(mContext, MyConstants.mainApkLocalVedioActivity)) {
                             sendBroadcast(new Intent(MyConstants.ACTION_LOCAL_VEDIO_PAUSE));
                         }
-                        asrTimes = 1;
                         isGoSleeping = false;
                         mAiMixASREngine.cancel();
                         mAiLocalTTSEngine.stop();
@@ -269,7 +276,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                                 || Util.isForeground(mContext, MyConstants.mainApkLocalVedioActivity)) {
                             sendBroadcast(new Intent(MyConstants.ACTION_LOCAL_VEDIO_PAUSE));
                         }
-                        asrTimes = 1;
                         isGoSleeping = false;
                         mAiMixASREngine.cancel();
                         mAiLocalTTSEngine.stop();
@@ -385,10 +391,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
      */
     private void init() {
         if (isDebugLog) Log.e(TAG, "SpeechService init auth...");
-
-        mHandler = new MyHandler();
-        if (getSpAuthInited()) {
-            if (isDebugLog) Log.e(TAG, "已经完成过注册了，直接开始初始化");
+        if (checkAndroidId()) {
+            if (isDebugLog) Log.e(TAG, "已经检测过AndroidId.txt和AndroidId，开始检测授权");
             isInited = true;
             mAiAuthEngine = AIAuthEngine.getInstance(getApplicationContext());
             //设置自定义路径，请将相关文件预先放到该目录下
@@ -401,6 +405,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
             mAiAuthEngine.setOnAuthListener(new RobotAIAuthListener());
             if (mAiAuthEngine.isAuthed()) {
+                if (isDebugLog) Log.e(TAG, "已经获取过授权，开始初始化引擎...");
                 isAuthed = true;
 
                 initWakeupDnnEngine();
@@ -414,52 +419,12 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     initAiLocalGrammarEngine();
                 }
             } else {
-                if (isDebugLog) Log.e(TAG, "已经完成过注册了，但是判断isAuthed() = false,重新注册");
+                if (isDebugLog) Log.e(TAG, "检测到没有获取授权，网络连接后执行授权");
                 if (NetworkUtil.isWifiConnected(SpeechService.this)) {
                     new Thread(new Runnable() {
                         @Override
                         public void run() {
-                            if (isDebugLog) Log.e(TAG, "重新开始注册，开始执行授权...");
-                            mAiAuthEngine.doAuth();
-                        }
-                    }).start();
-                }
-            }
-        } else {
-            if (!NetworkUtil.isWifiConnected(SpeechService.this)) {
-                if (isDebugLog) Log.e(TAG, "WiFi网络没有连接,等待网络...");
-            } else {
-                if (isDebugLog) Log.e(TAG, "WiFi网络连接正常，开始判断是否注册，开始初始化");
-
-                isInited = true;
-                mAiAuthEngine = AIAuthEngine.getInstance(getApplicationContext());
-                //设置自定义路径，请将相关文件预先放到该目录下
-                //mEngine.setResStoragePath("/system/vender/aispeech");
-                try {
-                    mAiAuthEngine.init(AppKey.APPKEY, AppKey.SECRETKEY, "");
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                }// TODO 换成您的APPKEY和SECRETKEY
-
-                mAiAuthEngine.setOnAuthListener(new RobotAIAuthListener());
-                if (mAiAuthEngine.isAuthed()) {
-                    isAuthed = true;
-
-                    initWakeupDnnEngine();
-                    initAILocalTTSEngine();
-                    //有可能是清除了应用的数据或是调试代码卸载了应用
-                    if (getSpGrammarInited()) {
-                        if (isDebugLog) Log.e(TAG, "本地识别资源已经编译过了，直接初始化混合识别引擎");
-                        initAiMixASREngine();//第一次编译资源完成不再需要编译
-                    } else {
-                        if (isDebugLog) Log.e(TAG, "本地识别资源还没编译，开始编译本地识别资源");
-                        initAiLocalGrammarEngine();
-                    }
-                } else {
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (isDebugLog) Log.e(TAG, "开始执行授权...");
+                            if (isDebugLog) Log.e(TAG, "开始注册，开始执行授权...");
                             mAiAuthEngine.doAuth();
                         }
                     }).start();
@@ -487,21 +452,92 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     }
 
     /**
-     * 获取语音是否已经注册成功
+     * 检测AndroidId.txt文件
      *
      * @return
      */
-    private boolean getSpAuthInited() {
-        SharedPreferences mPreferences = getSharedPreferences(MyConstants.SP_NAME, MODE_PRIVATE);
-        return mPreferences.getBoolean("spAuthInitedKey", false);
+    private boolean checkAndroidId() {
+        //AndroidID.txt
+        StringBuilder result = new StringBuilder();
+        File file = new File("/mnt/private/ULI/factory/AndoridID.txt");
+        if (file.exists()) {
+            if (isDebugLog) Log.e(TAG, "AndroidID.txt存在，判断系统的AndroidId是否和文件中的一致，不一致需要修改为一致的");
+            try {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                String s = null;
+                while ((s = br.readLine()) != null) {
+                    //使用readLine方法，一次读一行
+                    result.append(s);
+                }
+                br.close();
+                String androidId = result.toString();
+                if (isDebugLog) Log.e(TAG, "AndoridID.txt androidId = " + androidId);
+                if (!TextUtils.isEmpty(androidId)) {
+                    if (!androidId.equals(getAndroidId())) {
+                        if (isDebugLog) Log.e(TAG, "androidId != androidId1...");
+                        Settings.Secure.putString(getContentResolver(), Settings.Secure.ANDROID_ID, androidId);
+                    }
+                    return true;
+                }
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else {
+            if (isDebugLog) Log.e(TAG, "AndroidID.txt不存在，生成AndroidId.txt文件和AndroidId");
+            try {
+                file.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+            String newAndroidId = "";
+            while ((newAndroidId = getRandomAndroidId()).length() == 16) {
+                if (writeFile(file, newAndroidId)) {
+                    if (isDebugLog) Log.e(TAG, "newAndroidId = " + newAndroidId);
+                    Settings.Secure.putString(getContentResolver(), Settings.Secure.ANDROID_ID, newAndroidId);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Android Id
+    private String getAndroidId() {
+        String androidId = Settings.Secure.getString(
+                getContentResolver(), Settings.Secure.ANDROID_ID);
+        return androidId;
     }
 
     /**
-     * 设置语音注册成功
+     * 获取随机的合法的AndroidId
+     *
+     * @return
      */
-    private void setSpAuthInited() {
-        SharedPreferences.Editor editor = mContext.getSharedPreferences(MyConstants.SP_NAME, MODE_PRIVATE).edit();
-        editor.putBoolean("spAuthInitedKey", true).commit();
+    private String getRandomAndroidId() {
+        SecureRandom random = new SecureRandom();
+        return Long.toHexString(random.nextLong());
+    }
+
+    /**
+     * 写入AndroidId
+     *
+     * @param file
+     * @param androidId
+     */
+    private boolean writeFile(File file, String androidId) {
+        try {
+            BufferedWriter out = new BufferedWriter(new FileWriter(file));
+            out.write(androidId);
+            out.flush(); // 把缓存区内容压入文件
+            out.close(); // 最后记得关闭文件
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     /**
@@ -517,7 +553,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             initAILocalTTSEngine();
             initAiLocalGrammarEngine();
 //            initAiMixASREngine();
-            setSpAuthInited();
         }
 
         @Override
@@ -595,7 +630,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 sendBroadcast(new Intent(MyConstants.ACTION_DANCE_SERVICE_PAUSED));
                 isMainOnPause = true;
             }
-            asrTimes = 0;
             acquireWakeLock();//实现在对话中不息屏
             mHandler.removeMessages(4);
             mHandler.removeMessages(2);
@@ -714,7 +748,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 } else if (isMpOnpause) {
                     if (isDebugLog)
                         Log.e(TAG, "RobotAITTSListener onCompletion isMpOnpause = true");
-                    mAiMixASREngine.start();
+                    isNeedStopRecording();
                     long currentTimes = System.currentTimeMillis();
                     if ((currentTimes - mediaPauseTime) > 30 * 1000) {
                         mRobotMediaPlayer.stop();
@@ -931,7 +965,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 CN_PREVIEW = MyConstants.HELP_TIP;
                 speakTips();
             }
-            asrTimes++;
         }
 
         @Override
@@ -940,7 +973,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (aiResult.getResultType() == AIConstant.AIENGINE_MESSAGE_TYPE_JSON) {
                     if (isDebugLog)
                         Log.e(TAG, "result JSON = " + aiResult.getResultObject().toString());
-                    asrTimes++;
                     parseData(aiResult);
                 }
             }
