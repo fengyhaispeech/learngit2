@@ -211,6 +211,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             } else if (action.equals(MyConstants.HEAD_TOUCH_ACTION)) {
                 if (isDebugLog) Log.e(TAG, "监听到触摸机器人 头 的广播");
                 if (isStoped) {
+                    if (isDebugLog) Log.e(TAG, "触摸了机器人的 头，但是isStoped = true");
                     return;
                 }
                 Random mRandom = new Random();
@@ -251,6 +252,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             } else if (action.equals(MyConstants.HAND_TOUCH_ACTION)) {
                 if (isDebugLog) Log.e(TAG, "监听到触摸机器人 手 的广播");
                 if (isStoped) {
+                    if (isDebugLog) Log.e(TAG, "触摸了机器人的手，但是isStoped = true");
                     return;
                 }
                 Random mRandom = new Random();
@@ -465,7 +467,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private boolean checkAndroidId() {
         //AndroidID.txt
         StringBuilder result = new StringBuilder();
-        File file = new File("/mnt/private/ULI/factory/AndoridID.txt");
+        File file = new File("/mnt/private/ULI/factory/AndroidID.txt");
         if (file.exists()) {
             if (isDebugLog) Log.e(TAG, "AndroidID.txt存在，判断系统的AndroidId是否和文件中的一致，不一致需要修改为一致的");
             try {
@@ -477,13 +479,15 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 }
                 br.close();
                 String androidId = result.toString();
-                if (isDebugLog) Log.e(TAG, "AndoridID.txt androidId = " + androidId);
-                if (!TextUtils.isEmpty(androidId)) {
+                if (isDebugLog) Log.e(TAG, "AndroidID.txt androidId = " + androidId);
+                if (!TextUtils.isEmpty(androidId) && androidId.length() == 16) {
                     if (!androidId.equals(getAndroidId())) {
                         if (isDebugLog) Log.e(TAG, "androidId != androidId1...");
                         Settings.Secure.putString(getContentResolver(), Settings.Secure.ANDROID_ID, androidId);
                     }
                     return true;
+                } else {
+                    return putAndroidId(file);
                 }
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
@@ -498,14 +502,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 e.printStackTrace();
                 return false;
             }
-            String newAndroidId = "";
-            while ((newAndroidId = getRandomAndroidId()).length() == 16) {
-                if (writeFile(file, newAndroidId)) {
-                    if (isDebugLog) Log.e(TAG, "newAndroidId = " + newAndroidId);
-                    Settings.Secure.putString(getContentResolver(), Settings.Secure.ANDROID_ID, newAndroidId);
-                    return true;
-                }
-            }
+            return putAndroidId(file);
         }
         return false;
     }
@@ -515,6 +512,28 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         String androidId = Settings.Secure.getString(
                 getContentResolver(), Settings.Secure.ANDROID_ID);
         return androidId;
+    }
+
+    /**
+     * 设置AndroidId
+     *
+     * @param file
+     * @return
+     */
+    private boolean putAndroidId(File file) {
+        String newAndroidId = "";
+        boolean is16 = true;
+        while (is16) {
+            if ((newAndroidId = getRandomAndroidId()).length() == 16) {
+                if (writeFile(file, newAndroidId)) {
+                    if (isDebugLog) Log.e(TAG, "newAndroidId = " + newAndroidId);
+                    Settings.Secure.putString(getContentResolver(), Settings.Secure.ANDROID_ID, newAndroidId);
+                    is16 = false;
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
