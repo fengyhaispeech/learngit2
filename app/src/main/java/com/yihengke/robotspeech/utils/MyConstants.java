@@ -68,9 +68,13 @@ public class MyConstants {
     public static final String ACTION_ROBOT_WAKE_UP = "action_robot_wake_up";
     public static final String ACTION_ROBOT_GO_TO_SLEEP = "action_robot_go_to_sleep";
 
-    public static final String qqHdPartPackage = "com.tencent.yhkdeviceapp";//"com.tencent";
-    public static final String qqHdPackageName = "com.tencent.yhkdeviceapp";//"com.tencent.minihd.qq";
-    public static final String qqHdAvActivity = "com.tencent.yhkdeviceapp.VideoChatActivityHW";//"com.tencent.av.ui.AVActivity";
+    //视频通话
+    public static final String shiPinPackageName = "com.tencent.yhkdeviceapp";
+    public static final String shiPinActivity = "com.tencent.yhkdeviceapp.VideoChatActivityHW";
+    // QQ
+    public static final String qqHdPackageName = "com.tencent.minihd.qq";
+    public static final String qqHdPartPackage = "com.tencent.mobileqq";
+    public static final String qqHdPartAvActivity = "com.tencent.av";//"com.tencent.av.ui.AVActivity";
 
     public static final String ACTION_BIAOQING_ZHUANGTAI = "action_biaoqing_zhuangtai";
     public static final String KEY_BIAOQING_SIGN = "key_biaoqing_sign";

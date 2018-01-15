@@ -1605,42 +1605,40 @@ public class SpeechService extends Service implements MPOnCompletionListener {
      */
     class SpeechTiemrTask extends TimerTask {
         @Override
-        public void run() {
-            String temp = Util.getForeActivity(mContext);
-            if (!TextUtils.isEmpty(temp)) {
-                if (temp.contains(MyConstants.qqHdPartPackage) || temp.contains(MyConstants.mainApkCameraPackage)) {
-                    if (isDebugLog) Log.e(TAG, "检测到qq或相机在前台");
-                    if (isDebugLog) Log.e(TAG, "temp = " + temp);
-                    if (!isStoped && isAuthed) {
-                        if (isDebugLog) Log.e(TAG, "检测到需要停止唤醒和混合识别引擎");
-                        isStoped = true;
-                        if (isUsedMediaPlayer && mRobotMediaPlayer != null && !isMpOnpause) {
-                            mRobotMediaPlayer.stop();
-                            isUsedMediaPlayer = false;
+            public void run() {
+                String temp = Util.getForeActivity(mContext);
+                if (!TextUtils.isEmpty(temp)) {
+                    if (temp.contains(MyConstants.mainApkCameraPackage) || temp.contains(MyConstants.qqHdPackageName)
+                            || temp.contains(MyConstants.qqHdPartPackage) || temp.contains(MyConstants.qqHdPartAvActivity)
+                            || temp.contains(MyConstants.shiPinPackageName)) {
+                        if (isDebugLog) Log.e(TAG, "检测到qq或相机在前台");
+                        if (isDebugLog) Log.e(TAG, "temp = " + temp);
+                        if (!isStoped && isAuthed) {
+                            if (isDebugLog) Log.e(TAG, "检测到需要停止唤醒和混合识别引擎");
+                            isStoped = true;
+                            if (isUsedMediaPlayer && mRobotMediaPlayer != null && !isMpOnpause) {
+                                mRobotMediaPlayer.stop();
+                                isUsedMediaPlayer = false;
+                            }
+                            mAiLocalTTSEngine.stop();
+                            mHandler.removeMessages(5);
+                            mAiMixASREngine.cancel();
+                            mAiMixASREngine.stopRecording();
+                            mAiMixASREngine.destroy();
+                            mHandler.removeMessages(6);
+                            mAiLocalWakeupDnnEngine.stop();
+                            mAiLocalWakeupDnnEngine.destroy();
                         }
-                        mAiLocalTTSEngine.stop();
-                        mHandler.removeMessages(5);
-                        mAiMixASREngine.cancel();
-                        mAiMixASREngine.stopRecording();
-                        mAiMixASREngine.destroy();
-                        mHandler.removeMessages(6);
-                        mAiLocalWakeupDnnEngine.stop();
-                        mAiLocalWakeupDnnEngine.destroy();
-                    }
-                } else {
-                    if (isStoped && isAuthed) {
-                        if (Util.isForeground(mContext, MyConstants.qqHdAvActivity)) {
-                            if (isDebugLog) Log.e(TAG, "现在处于QQ视频对话的页面...");
-                            return;
+                    } else {
+                        if (isStoped && isAuthed) {
+                            if (isDebugLog) Log.e(TAG, "检测到需要开启唤醒引擎");
+                            isStoped = false;
+                            initAiMixASREngine();
+                            initWakeupDnnEngine();
                         }
-                        if (isDebugLog) Log.e(TAG, "检测到需要开启唤醒引擎");
-                        isStoped = false;
-                        initAiMixASREngine();
-                        initWakeupDnnEngine();
                     }
                 }
             }
-        }
     }
 
     /**
