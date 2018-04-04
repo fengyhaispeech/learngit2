@@ -94,4 +94,6 @@ public class MyConstants {
     public static final String ACTION_FINISH_SDS_ACTIVITY = "action_finish_sds_activity";
     public static final String ACTION_START_SDS_ACTIVITY = "action_start_sds_activity";
     public static final String KEY_START_SDS_ACTIVITY = "key_start_sds_activity";
+    //机器运动过程中检测到悬空状态的广播
+    public static final String ACTION_ROBOT_FLOW = "com.yinghengke.flow";
 }

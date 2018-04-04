@@ -87,7 +87,7 @@ public class TestCotrlActivity extends AppCompatActivity implements View.OnClick
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
             if (msg.what == 0) {
-                WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
+                //WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
             }
         }
     }

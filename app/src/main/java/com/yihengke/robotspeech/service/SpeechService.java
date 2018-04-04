@@ -186,6 +186,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mFilter.addAction(MyConstants.ACTION_SDS_ACTIVITY_FINISHED);
         mFilter.addAction(MyConstants.ACTION_START_SDS_ACTIVITY);
 
+        //机器悬空
+        mFilter.addAction(MyConstants.ACTION_ROBOT_FLOW);
         registerReceiver(mRobotReceiver, mFilter);
         if (isDebugLog) Log.e(TAG, "registerReceiver......");
     }
@@ -355,6 +357,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     sdsStartTime = System.currentTimeMillis();
                     mAiMixASREngine.start();
                 }
+            } else if (action.equals(MyConstants.ACTION_ROBOT_FLOW)) {
+                if (isDebugLog) Log.e(TAG, "监听到机器悬空的广播...");
+                WriteDataUtils.native_ear_light_control(0, MyConstants.MOTOR_STOP, 0);
             }
         }
     }
@@ -1605,40 +1610,40 @@ public class SpeechService extends Service implements MPOnCompletionListener {
      */
     class SpeechTiemrTask extends TimerTask {
         @Override
-            public void run() {
-                String temp = Util.getForeActivity(mContext);
-                if (!TextUtils.isEmpty(temp)) {
-                    if (temp.contains(MyConstants.mainApkCameraPackage) || temp.contains(MyConstants.qqHdPackageName)
-                            || temp.contains(MyConstants.qqHdPartPackage) || temp.contains(MyConstants.qqHdPartAvActivity)
-                            || temp.contains(MyConstants.shiPinPackageName)) {
-                        if (isDebugLog) Log.e(TAG, "检测到qq或相机在前台");
-                        if (isDebugLog) Log.e(TAG, "temp = " + temp);
-                        if (!isStoped && isAuthed) {
-                            if (isDebugLog) Log.e(TAG, "检测到需要停止唤醒和混合识别引擎");
-                            isStoped = true;
-                            if (isUsedMediaPlayer && mRobotMediaPlayer != null && !isMpOnpause) {
-                                mRobotMediaPlayer.stop();
-                                isUsedMediaPlayer = false;
-                            }
-                            mAiLocalTTSEngine.stop();
-                            mHandler.removeMessages(5);
-                            mAiMixASREngine.cancel();
-                            mAiMixASREngine.stopRecording();
-                            mAiMixASREngine.destroy();
-                            mHandler.removeMessages(6);
-                            mAiLocalWakeupDnnEngine.stop();
-                            mAiLocalWakeupDnnEngine.destroy();
+        public void run() {
+            String temp = Util.getForeActivity(mContext);
+            if (!TextUtils.isEmpty(temp)) {
+                if (temp.contains(MyConstants.mainApkCameraPackage) || temp.contains(MyConstants.qqHdPackageName)
+                        || temp.contains(MyConstants.qqHdPartPackage) || temp.contains(MyConstants.qqHdPartAvActivity)
+                        || temp.contains(MyConstants.shiPinPackageName)) {
+                    if (isDebugLog) Log.e(TAG, "检测到qq或相机在前台");
+                    if (isDebugLog) Log.e(TAG, "temp = " + temp);
+                    if (!isStoped && isAuthed) {
+                        if (isDebugLog) Log.e(TAG, "检测到需要停止唤醒和混合识别引擎");
+                        isStoped = true;
+                        if (isUsedMediaPlayer && mRobotMediaPlayer != null && !isMpOnpause) {
+                            mRobotMediaPlayer.stop();
+                            isUsedMediaPlayer = false;
                         }
-                    } else {
-                        if (isStoped && isAuthed) {
-                            if (isDebugLog) Log.e(TAG, "检测到需要开启唤醒引擎");
-                            isStoped = false;
-                            initAiMixASREngine();
-                            initWakeupDnnEngine();
-                        }
+                        mAiLocalTTSEngine.stop();
+                        mHandler.removeMessages(5);
+                        mAiMixASREngine.cancel();
+                        mAiMixASREngine.stopRecording();
+                        mAiMixASREngine.destroy();
+                        mHandler.removeMessages(6);
+                        mAiLocalWakeupDnnEngine.stop();
+                        mAiLocalWakeupDnnEngine.destroy();
+                    }
+                } else {
+                    if (isStoped && isAuthed) {
+                        if (isDebugLog) Log.e(TAG, "检测到需要开启唤醒引擎");
+                        isStoped = false;
+                        initAiMixASREngine();
+                        initWakeupDnnEngine();
                     }
                 }
             }
+        }
     }
 
     /**

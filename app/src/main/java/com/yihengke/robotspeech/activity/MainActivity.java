@@ -17,6 +17,7 @@ import android.widget.ImageView;
 
 import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.R;
+import com.yihengke.robotspeech.utils.MyConstants;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
 
 import java.util.Random;
@@ -183,6 +184,7 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
         mFilter.addAction(ACTION_DANCE_SERVICE_STOP);
         mFilter.addAction(ACTION_DANCE_SERVICE_GO_ON);
         mFilter.addAction(ACTION_DANCE_SERVICE_NEXT_UP);
+        mFilter.addAction(MyConstants.ACTION_ROBOT_FLOW);
         registerReceiver(mainReceiver, mFilter);
     }
 
@@ -217,6 +219,13 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
                     currentSong = 0;
                     initMedia(currentSong);
                 }
+            } else if (action.equals(MyConstants.ACTION_ROBOT_FLOW)) {
+                mediaPlayer.pause();
+                if (mTimer != null) {
+                    mTimer.cancel();
+                    mTimer = null;
+                }
+                WriteDataUtils.native_ear_light_control(0, 4, 0);
             }
         }
     }
