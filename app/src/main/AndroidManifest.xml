@@ -59,12 +59,23 @@
         <service
             android:name=".service.SpeechService"
             android:exported="true" />
+
         <receiver android:name=".broadcast.BootBroadcastReceiver">
             <intent-filter android:priority="10000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.media.AUDIO_BECOMING_NOISY" />
             </intent-filter>
         </receiver>
+        <receiver android:name=".clockUtils.MyAlarmReceiver">
+            <intent-filter>
+                <action android:name="com.yihengke.alarm.clock" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name=".activity.ClockActivity"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape" />
     </application>
 
 </manifest>

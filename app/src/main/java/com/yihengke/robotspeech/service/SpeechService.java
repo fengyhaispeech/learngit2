@@ -43,6 +43,7 @@ import com.yihengke.robotspeech.AppKey;
 import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.R;
 import com.yihengke.robotspeech.activity.MainActivity;
+import com.yihengke.robotspeech.clockUtils.AlarmManagerUtil;
 import com.yihengke.robotspeech.utils.GrammarHelper;
 import com.yihengke.robotspeech.utils.MPOnCompletionListener;
 import com.yihengke.robotspeech.utils.MyConstants;
@@ -1269,6 +1270,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         } else if (domain.equals("translation")) {
             if (isDebugLog) Log.e(TAG, "domain 翻译，domain = " + domain);
             return speakTranslate(sdsJsonObj);
+        } else if (domain.equals("reminder")) {
+            if (isDebugLog) Log.e(TAG, "domain 提醒，domain = " + domain);
+            return parseAndSetReminder(sdsJsonObj);
         } else {
             if (isDebugLog) Log.e(TAG, "domain 是其他的，domain = " + domain);
             return false;
@@ -1482,6 +1486,74 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         CN_PREVIEW = dst;
         sendBiaoQingSign(MyConstants.coolAnim);
         speakTips();
+        return true;
+    }
+
+    /**
+     * 解析对话、设置提醒（闹钟，日程，倒计时等）
+     *
+     * @param sdsJsonObj
+     * @return
+     */
+    private boolean parseAndSetReminder(JSONObject sdsJsonObj) {
+        JSONObject nluJsonObject = sdsJsonObj.optJSONObject("nlu");
+        if (nluJsonObject == null) {
+            return false;
+        }
+        String time = nluJsonObject.optString("time");
+        if (isDebugLog) Log.e(TAG, "time == " + time);
+        String outPut = sdsJsonObj.optString("output");
+        if (TextUtils.isEmpty(outPut)) {
+            CN_PREVIEW = "抱歉没听懂，请再说一遍！";
+        } else {
+            CN_PREVIEW = outPut;
+        }
+        if (TextUtils.isEmpty(time)) {
+            CN_PREVIEW = "抱歉没听懂，请再说一遍！";
+            sendBiaoQingSign(MyConstants.naughtyAnim);
+        } else {
+            //设置reminder
+            String date = nluJsonObject.optString("date");
+            if (!setReminder(date, time)) {
+                CN_PREVIEW = "抱歉没听懂，请再说一遍！";
+                sendBiaoQingSign(MyConstants.naughtyAnim);
+            } else {
+                sendBiaoQingSign(MyConstants.coolAnim);
+            }
+        }
+        speakTips();
+        return true;
+    }
+
+    /**
+     * 设置提醒
+     *
+     * @param date
+     * @param time
+     */
+    private boolean setReminder(String date, String time) {
+        if (isDebugLog) Log.e(TAG, "setReminder...");
+        if (date.equals("EVERYDAY")) {
+            //重复的每天的闹钟，暂不支持
+            return false;
+        } else {
+            char[] dateChars = date.toCharArray();
+            String year = String.valueOf(new char[]{dateChars[0], dateChars[1], dateChars[2], dateChars[3]});
+            String month = String.valueOf(new char[]{dateChars[4], dateChars[5]});
+            String day = String.valueOf(new char[]{dateChars[6], dateChars[7]});
+            StringBuilder sb = new StringBuilder();
+            sb.append(year).append("-").append(month).append("-").append(day).append(" ").append(time);
+            long milliseconds = AlarmManagerUtil.getDate2milliseconds(sb.toString());
+            if (milliseconds == 0) {
+                return false;
+            } else {
+                if (isDebugLog) Log.e(TAG, "获取转换后的毫秒值是：" + milliseconds);
+                AlarmManagerUtil.setAlarm(mContext, 0, milliseconds, "闹钟响了", 1);
+            }
+        }
+/*        String[] times = time.split(":");
+        AlarmManagerUtil.setAlarm(mContext, 0, Integer.parseInt(times[0]), Integer.parseInt(times[1]),
+                0, 0, "闹钟响了", 1);*/
         return true;
     }
 
