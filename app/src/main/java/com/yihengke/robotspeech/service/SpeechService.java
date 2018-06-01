@@ -39,6 +39,9 @@ import com.aispeech.export.listeners.AILocalGrammarListener;
 import com.aispeech.export.listeners.AILocalWakeupDnnListener;
 import com.aispeech.export.listeners.AITTSListener;
 import com.aispeech.speech.AIAuthEngine;
+import com.lzy.okgo.OkGo;
+import com.lzy.okgo.callback.StringCallback;
+import com.lzy.okgo.model.Response;
 import com.yihengke.robotspeech.AppKey;
 import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.R;
@@ -135,6 +138,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private int asrInitStatus = -1;
     private Dialog mShutdownDialog;
 
+    private final String base_url = "http://device.elinkiot.net/zhyl_robot/chatrecord/save";//"http://www.nineox.cn:1026/chatrecord/save";
+    private String snCustom;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -144,6 +150,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mHandler = new MyHandler();
         initReceiver();
         init();
+        snCustom = getAndroidId();//Util.getSerialNumberCustom();
         startForeground(0, null);
     }
 
@@ -1107,6 +1114,12 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 dlgDomain = requestObj.optString("domain");
             }
         }
+        String input = result.optString("input");
+        String output = sdsJsonObj.optString("output");
+        if (!TextUtils.isEmpty(input) && !TextUtils.isEmpty(output)){
+            postSpeechToNet(input, domain, 1);
+            postSpeechToNet(output, domain, 0);
+        }
 
         if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
             JSONObject dataJsonObj = sdsJsonObj.optJSONObject("data");
@@ -1114,7 +1127,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isDebugLog) Log.e(TAG, "domain = netfm... ，data == null");
                 return false;
             }
-            String output = sdsJsonObj.optString("output");
             JSONArray dbdataJsArray = dataJsonObj.optJSONArray("dbdata");
             if (dbdataJsArray != null && dbdataJsArray.length() > 0) {
                 if (!TextUtils.isEmpty(output)) {
@@ -1180,9 +1192,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             }
         } else if (domain.equals("chat") || domain.equals("weather") || domain.equals("calendar") || domain.equals("calculator")) {
             if (isDebugLog) Log.e(TAG, "domain 是 chat 或 weather，domain = " + domain);
-            String outPut = sdsJsonObj.optString("output");
-            String input = result.optString("input");
-
             if (input.contains("向前") || input.contains("向后") || input.contains("往前") || input.contains("往后")
                     || input.contains("向左") || input.contains("向右") || input.contains("往左") || input.contains("往右")
                     || input.contains("前进") || input.contains("后退")) {
@@ -1196,49 +1205,49 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 openMainMenu(input);
                 return true;
             } else {
-                if (!TextUtils.isEmpty(outPut)) {
+                if (!TextUtils.isEmpty(output)) {
                     //使用本地合成语音播放返回的内容
-                    if (outPut.contains("是哪个漂亮的妹子")) {
+                    if (output.contains("是哪个漂亮的妹子")) {
                         CN_PREVIEW = "你好啊，小主人";
-                    } else if (outPut.contains("我爸爸是思必驰")) {
+                    } else if (output.contains("我爸爸是思必驰")) {
                         CN_PREVIEW = "我爸爸是小精灵";
-                    } else if (outPut.contains("爸是思必驰")) {
+                    } else if (output.contains("爸是思必驰")) {
                         CN_PREVIEW = "我爸爸是小精灵";
-                    } else if (outPut.contains("我爸爸叫思必驰")) {
+                    } else if (output.contains("我爸爸叫思必驰")) {
                         CN_PREVIEW = "我爸爸是小精灵";
-                    } else if (outPut.contains("爸叫思必驰")) {
+                    } else if (output.contains("爸叫思必驰")) {
                         CN_PREVIEW = "我爸爸是小精灵";
-                    } else if (outPut.contains("思必驰是我爸爸")) {
+                    } else if (output.contains("思必驰是我爸爸")) {
                         CN_PREVIEW = "我爸爸是小精灵";
-                    } else if (outPut.contains("思必驰的所有攻城狮，程序猿哥哥都是我的巴比")) {
+                    } else if (output.contains("思必驰的所有攻城狮，程序猿哥哥都是我的巴比")) {
                         CN_PREVIEW = "我爸爸是小精灵";
-                    } else if (outPut.contains("我妈妈叫思必驰")) {
+                    } else if (output.contains("我妈妈叫思必驰")) {
                         CN_PREVIEW = "我妈妈是小精灵";
-                    } else if (outPut.contains("妈叫思必驰")) {
+                    } else if (output.contains("妈叫思必驰")) {
                         CN_PREVIEW = "我妈妈是小精灵";
-                    } else if (outPut.contains("我妈妈是思必驰")) {
+                    } else if (output.contains("我妈妈是思必驰")) {
                         CN_PREVIEW = "我妈妈是小精灵";
-                    } else if (outPut.contains("妈是思必驰")) {
+                    } else if (output.contains("妈是思必驰")) {
                         CN_PREVIEW = "我妈妈是小精灵";
-                    } else if (outPut.contains("我妈妈在思必驰")) {
+                    } else if (output.contains("我妈妈在思必驰")) {
                         CN_PREVIEW = "我妈妈在鲁奇亚";
-                    } else if (outPut.contains("我是小驰")) {
+                    } else if (output.contains("我是小驰")) {
                         CN_PREVIEW = "我是鲁奇亚";
-                    } else if (outPut.contains("我叫小驰")) {
+                    } else if (output.contains("我叫小驰")) {
                         CN_PREVIEW = "我叫鲁奇亚";
-                    } else if (outPut.contains("因为要做爱")) {
+                    } else if (output.contains("因为要做爱")) {
                         CN_PREVIEW = "也许是上帝的安排吧，为了制造浪漫和痛苦";
-                    } else if (outPut.contains("小驰是我")) {
+                    } else if (output.contains("小驰是我")) {
                         CN_PREVIEW = "小驰是我的朋友";
                     } else {
-                        CN_PREVIEW = outPut;
+                        CN_PREVIEW = output;
                     }
-                    if (outPut.contains("生气") || outPut.contains("不开心")) {
+                    if (output.contains("生气") || output.contains("不开心")) {
                         sendBiaoQingSign(MyConstants.angryAnim);
-                    } else if (outPut.contains("震惊") || outPut.contains("惊恐") || outPut.contains("吃惊")
-                            || outPut.contains("害怕") || outPut.contains("恐惧") || outPut.contains("恐怖")) {
+                    } else if (output.contains("震惊") || output.contains("惊恐") || output.contains("吃惊")
+                            || output.contains("害怕") || output.contains("恐惧") || output.contains("恐怖")) {
                         sendBiaoQingSign(MyConstants.shockAnim);
-                    } else if (outPut.contains("当然") || outPut.contains("酷") || outPut.contains("必须的")) {
+                    } else if (output.contains("当然") || output.contains("酷") || output.contains("必须的")) {
                         sendBiaoQingSign(MyConstants.coolAnim);
                     }
                     if (TextUtils.isEmpty(input)) {
@@ -1687,7 +1696,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (!TextUtils.isEmpty(temp)) {
                 if (temp.contains(MyConstants.mainApkCameraPackage) || temp.contains(MyConstants.qqHdPackageName)
                         || temp.contains(MyConstants.qqHdPartPackage) || temp.contains(MyConstants.qqHdPartAvActivity)
-                        || temp.contains(MyConstants.shiPinPackageName)) {
+                        || temp.contains(MyConstants.shiPinPackageName) || temp.contains(MyConstants.chengZhangBaoBeiPackage)) {
                     if (isDebugLog) Log.e(TAG, "检测到qq或相机在前台");
                     if (isDebugLog) Log.e(TAG, "temp = " + temp);
                     if (!isStoped && isAuthed) {
@@ -1772,6 +1781,39 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         intent.putExtra("android.intent.extra.KEY_CONFIRM", false);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
+    }
+
+    /**
+     * 上传语音对话到服务器
+     *
+     * @param content
+     * @param domain
+     * @param type    0 机器  1 人
+     */
+    private void postSpeechToNet(String content, String domain, int type) {
+        if (!TextUtils.isEmpty(snCustom)) {
+            OkGo.<String>post(base_url)
+                    .tag(this)
+                    .params("mid", snCustom)
+                    .params("content", content)
+                    .params("type", type)
+                    .params("listeningType", domain)
+                    .params("posttime", System.currentTimeMillis())
+                    .execute(new StringCallback() {
+                        @Override
+                        public void onSuccess(Response<String> response) {
+                            String str = response.body().toString();
+                            if (isDebugLog) Log.i(TAG, "OKGO " + str);
+                        }
+
+                        @Override
+                        public void onError(Response<String> response) {
+                            super.onError(response);
+                            String str = response.body().toString();
+                            if (isDebugLog) Log.i(TAG, "OKGO " + str);
+                        }
+                    });
+        }
     }
 
     @Override

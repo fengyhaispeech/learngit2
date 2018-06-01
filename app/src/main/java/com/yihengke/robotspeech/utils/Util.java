@@ -10,6 +10,7 @@ import android.view.KeyEvent;
 
 import com.yihengke.robotspeech.activity.SdsActivity;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 /**
@@ -160,5 +161,18 @@ public class Util {
         mIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         mIntent.putExtra(MyConstants.KEY_START_SDS_ACTIVITY, 0);
         context.startActivity(mIntent);
+    }
+
+    //SN号custom
+    public static String getSerialNumberCustom() {
+        String serial = null;
+        try {
+            Class<?> c = Class.forName("android.os.SystemProperties");
+            Method get = c.getMethod("get", String.class);
+            serial = (String) get.invoke(c, "ro.serialnocustom");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return serial;
     }
 }

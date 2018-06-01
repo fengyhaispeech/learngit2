@@ -17,6 +17,7 @@ import android.widget.ImageView;
 
 import com.yihengke.robotspeech.BuildConfig;
 import com.yihengke.robotspeech.R;
+import com.yihengke.robotspeech.service.SpeechService;
 import com.yihengke.robotspeech.utils.MyConstants;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
 
@@ -72,7 +73,7 @@ public class MainActivity extends AppCompatActivity implements MediaPlayer.OnBuf
         initMedia(currentSong);
 
         initViews();
-//        startService(new Intent(MainActivity.this, SpeechService.class));
+        startService(new Intent(MainActivity.this, SpeechService.class));
         initReceiver();
     }
 

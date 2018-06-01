@@ -96,4 +96,6 @@ public class MyConstants {
     public static final String KEY_START_SDS_ACTIVITY = "key_start_sds_activity";
     //机器运动过程中检测到悬空状态的广播
     public static final String ACTION_ROBOT_FLOW = "com.yinghengke.flow";
+    //成长宝贝机器端APK的包名
+    public static final String chengZhangBaoBeiPackage = "cn.nineox.robot.monitor";
 }
