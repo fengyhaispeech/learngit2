@@ -1,6 +1,5 @@
 *.iml
 .gradle
-/.idea
 /local.properties
 /.idea/workspace.xml
 /.idea/vcs.xml
@@ -10,3 +9,5 @@
 /build
 /captures
 .externalNativeBuild
+.idea
+/.idea

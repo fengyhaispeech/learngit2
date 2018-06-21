@@ -1,5 +1,6 @@
 package com.yihengke.robotspeech.service;
 
+import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.app.Service;
 import android.content.BroadcastReceiver;
@@ -14,8 +15,10 @@ import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.ISteeringService;
 import android.os.Message;
 import android.os.PowerManager;
+import android.os.RemoteException;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
@@ -30,13 +33,13 @@ import com.aispeech.AIResult;
 import com.aispeech.common.AIConstant;
 import com.aispeech.common.JSONResultParser;
 import com.aispeech.export.engines.AILocalGrammarEngine;
+import com.aispeech.export.engines.AILocalSignalAndWakeupEngine;
 import com.aispeech.export.engines.AILocalTTSEngine;
-import com.aispeech.export.engines.AILocalWakeupDnnEngine;
 import com.aispeech.export.engines.AIMixASREngine;
 import com.aispeech.export.listeners.AIASRListener;
 import com.aispeech.export.listeners.AIAuthListener;
 import com.aispeech.export.listeners.AILocalGrammarListener;
-import com.aispeech.export.listeners.AILocalWakeupDnnListener;
+import com.aispeech.export.listeners.AILocalSignalAndWakeupListener;
 import com.aispeech.export.listeners.AITTSListener;
 import com.aispeech.speech.AIAuthEngine;
 import com.lzy.okgo.OkGo;
@@ -112,7 +115,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private PowerManager.WakeLock wakeLock = null;
 
     private AIAuthEngine mAiAuthEngine;
-    private AILocalWakeupDnnEngine mAiLocalWakeupDnnEngine;
+    private AILocalSignalAndWakeupEngine mAILocalSignalAndWakeupEngine;
     private AILocalTTSEngine mAiLocalTTSEngine;
     private AIMixASREngine mAiMixASREngine;
     private AILocalGrammarEngine mAiLocalGrammarEngine;
@@ -140,6 +143,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
 
     private final String base_url = "http://device.elinkiot.net/zhyl_robot/chatrecord/save";//"http://www.nineox.cn:1026/chatrecord/save";
     private String snCustom;
+    private ISteeringService iSteeringService;
 
     @Override
     public void onCreate() {
@@ -150,7 +154,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mHandler = new MyHandler();
         initReceiver();
         init();
-        snCustom = getAndroidId();//Util.getSerialNumberCustom();
+        snCustom = Util.getSerialNumberCustom();
+        initSteering();
         startForeground(0, null);
     }
 
@@ -172,6 +177,21 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             speechTimer.scheduleAtFixedRate(new SpeechTiemrTask(), 0, 5 * 1000);
         }
         return START_STICKY;
+    }
+
+    /**
+     * 初始化舵机
+     */
+    private void initSteering() {
+        iSteeringService = ISteeringService.Stub.asInterface((IBinder) Util.getServerService());
+        if (iSteeringService != null) {
+            try {
+                int temp = iSteeringService.openDev();
+                if (isDebugLog) Log.e(TAG, "iSteeringService openDev: " + temp);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private void initReceiver() {
@@ -372,6 +392,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         }
     }
 
+    @SuppressLint("HandlerLeak")
     class MyHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
@@ -392,7 +413,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     break;
                 case 3:
                     if (isDebugLog) Log.e(TAG, "唤醒引擎初始化失败，重新初始化...");
-                    mAiLocalWakeupDnnEngine.init(mContext, new RobotAILocalWakeupDnnListener(), AppKey.APPKEY, AppKey.SECRETKEY);
+                    mAILocalSignalAndWakeupEngine.init(mContext, new RobotAILocalSignalAndWakeupListener(), AppKey.APPKEY, AppKey.SECRETKEY);
                     break;
                 case 4:
                     if (isDebugLog) Log.e(TAG, "混合识别引擎初始化失败，重新初始化...");
@@ -429,7 +450,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 if (isDebugLog) Log.e(TAG, "已经获取过授权，开始初始化引擎...");
                 isAuthed = true;
 
-                initWakeupDnnEngine();
+                initWakeupEngine();
                 initAILocalTTSEngine();
                 //有可能是清除了应用的数据或是调试代码卸载了应用
                 if (getSpGrammarInited()) {
@@ -587,7 +608,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             if (isDebugLog) Log.e(TAG, "授权成功...初始化三个引擎");
             isAuthed = true;
 
-            initWakeupDnnEngine();
+            initWakeupEngine();
             initAILocalTTSEngine();
             initAiLocalGrammarEngine();
 //            initAiMixASREngine();
@@ -602,28 +623,32 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     /**
      * 初始化唤醒引擎
      */
-    private void initWakeupDnnEngine() {
-        if (isDebugLog) Log.e(TAG, "initWakeupDnnEngine 开始初始化唤醒引擎");
-        mAiLocalWakeupDnnEngine = AILocalWakeupDnnEngine.createInstance();
-        mAiLocalWakeupDnnEngine.setResBin(SampleConstants.res_wake);
-        mAiLocalWakeupDnnEngine.init(this, new RobotAILocalWakeupDnnListener(), AppKey.APPKEY, AppKey.SECRETKEY);
-//      mEngine.setEchoWavePath("/sdcard/speech"); //保存音频到/sdcard/speech/目录,请确保该目录存在
-//      mAiLocalWakeupDnnEngine.setStopOnWakeupSuccess(true);//设置当检测到唤醒词后自动停止唤醒引擎
+    private void initWakeupEngine() {
+        if (isDebugLog) Log.e(TAG, "initWakeupEngine 开始初始化唤醒引擎");
+        mAILocalSignalAndWakeupEngine = AILocalSignalAndWakeupEngine.getInstance();
+        mAILocalSignalAndWakeupEngine.disableAec();
+        mAILocalSignalAndWakeupEngine.setBeamformingCfg(SampleConstants.BEAMFORMING_CFG);
+        mAILocalSignalAndWakeupEngine.setResBin(SampleConstants.WAKEUP_RES_BIN);
+        mAILocalSignalAndWakeupEngine.setWords(new String[]{"ni hao xiao le"});
+        mAILocalSignalAndWakeupEngine.setThreshold(new float[]{0.24f});
+        mAILocalSignalAndWakeupEngine.setMajors(new int[]{1});
+        //mAILocalSignalAndWakeupEngine.setWakeupCfg(SampleConstants.WAKEUP_CFG);
+        mAILocalSignalAndWakeupEngine.init(getApplicationContext(), new RobotAILocalSignalAndWakeupListener()
+                , AppKey.APPKEY, AppKey.SECRETKEY);
     }
 
     /**
      * 唤醒回调接口
      */
-    class RobotAILocalWakeupDnnListener implements AILocalWakeupDnnListener {
+    class RobotAILocalSignalAndWakeupListener implements AILocalSignalAndWakeupListener {
 
         @Override
         public void onInit(int status) {
             if (status == AIConstant.OPT_SUCCESS) {
                 if (isDebugLog) Log.e(TAG, "唤醒引擎初始化成功...开始等待唤醒...");
-                mAiLocalWakeupDnnEngine.start();
+                mAILocalSignalAndWakeupEngine.start();
             } else {
                 if (isDebugLog) Log.e(TAG, "唤醒引擎初始化 失败..." + status);
-//                mAiLocalWakeupDnnEngine.init(mContext, new RobotAILocalWakeupDnnListener(), AppKey.APPKEY, AppKey.SECRETKEY);
                 mHandler.sendEmptyMessageDelayed(3, 3000);
             }
         }
@@ -631,11 +656,10 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         @Override
         public void onError(AIError aiError) {
             if (isDebugLog) Log.e(TAG, "唤醒回调显示失败..." + aiError.toString());
-//            mAiLocalWakeupDnnEngine.start();
         }
 
         @Override
-        public void onWakeup(String s, double v, String s1) {
+        public void onWakeup(double v, String s1) {
             if (isDebugLog) Log.e(TAG, "唤醒成功...");
             if (isScreenOFF) {
                 //点亮屏幕
@@ -675,13 +699,19 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         }
 
         @Override
-        public void onRmsChanged(float v) {
-            if (isDebugLog) Log.i(TAG, "唤醒引擎 onRmsChanged rmsDb = " + v);
-        }
-
-        @Override
-        public void onRecorderReleased() {
-            if (isDebugLog) Log.e(TAG, "唤醒引擎 onRecorderReleased...");
+        public void onDoaResult(int i) {
+            if (isDebugLog) Log.e(TAG, "WakeupListener onDoaResult " + i);
+            if (i > 180)
+                i = 180;
+            if (i <= 0)
+                i = 1;
+            if (iSteeringService != null) {
+                try {
+                    iSteeringService.rotate(i, i * 10);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
         }
 
         @Override
@@ -690,14 +720,15 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         }
 
         @Override
-        public void onBufferReceived(byte[] bytes) {
-            if (isDebugLog) Log.i(TAG, "唤醒引擎 onBufferReceived bytes...");
+        public void onRawDataReceived(byte[] bytes, int i) {
+            if (isDebugLog)
+                Log.e(TAG, "WakeupListener onRawDataReceived " + bytes + "---" + i);
         }
 
         @Override
-        public void onWakeupEngineStopped() {
-            if (isDebugLog) Log.e(TAG, "onWakeupEngineStopped...");
-            mAiLocalWakeupDnnEngine.start();
+        public void onResultDataReceived(byte[] bytes, int i, int i1) {
+            if (isDebugLog)
+                Log.e(TAG, "WakeupListener onRawDataReceived " + bytes + "---" + i + "--" + i1);
         }
     }
 
@@ -813,6 +844,11 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 Log.i(TAG, "RobotAITTSListener onProgress 当前:" + currentTime + "ms, 总计:" + totalTime + "ms," +
                         " 可信度:" + isRefTextTTSFinished);
         }
+
+        @Override
+        public void onBufferReceived(byte[] bytes) {
+
+        }
     }
 
     /**
@@ -864,10 +900,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private void startResGen() {
         // 生成ebnf语法
         GrammarHelper gh = new GrammarHelper(this);
-        String appString = gh.getApps();
-        String ebnf = gh.importAssets("", "", "asr.xbnf");
+        String ebnf = gh.importAssets("asr.xbnf");
         if (isDebugLog) Log.e(TAG, ebnf);
-//        System.out.println(ebnf);
         // 设置ebnf语法
         mAiLocalGrammarEngine.setEbnf(ebnf);
         // 启动语法编译引擎，更新资源
@@ -880,7 +914,6 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     private void initAiMixASREngine() {
         if (isDebugLog) Log.e(TAG, "initmAiMixASREngine 开始初始化混合识别引擎");
         mAiMixASREngine = AIMixASREngine.createInstance();
-//      mAiMixASREngine.setResStoragePath("/system/vender/aispeech");//设置自定义路径，请将相关文件预先放到该目录下
         mAiMixASREngine.setResBin(SampleConstants.ebnfr_res);
         mAiMixASREngine.setNetBin(AILocalGrammarEngine.OUTPUT_NAME, true);
 
@@ -888,36 +921,24 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAiMixASREngine.setServer(SampleConstants.server_production);//产品环境 //灰度环境
         mAiMixASREngine.setUseXbnfRec(true);
         mAiMixASREngine.setRes(SampleConstants.res_robot);
-//        mAiMixASREngine.setUsePinyin(true);
         mAiMixASREngine.setUseForceout(false);
         mAiMixASREngine.setAthThreshold(0.7f);
         mAiMixASREngine.setIsRelyOnLocalConf(true);
         mAiMixASREngine.setIsPreferCloud(false);
         mAiMixASREngine.setLocalBetterDomains(new String[]{"robotctrl"});
-//        mAiMixASREngine.setCloudNotGoodAtDomains(new String[]{"phonecall","weixin"});
-//        mAiMixASREngine.putCloudLocalDomainMap("weixin", "wechat");
-//        mAiMixASREngine.putCloudLocalDomainMap("phonecall", "phone");
         mAiMixASREngine.setCloudNotGoodAtDomains(new String[]{"motionctrl", "command"});
         mAiMixASREngine.putCloudLocalDomainMap("motionctrl", "robotctrl");
         mAiMixASREngine.putCloudLocalDomainMap("command", "robotctrl");
         mAiMixASREngine.setWaitCloudTimeout(2000);
         mAiMixASREngine.setPauseTime(500);
-//        mAiMixASREngine.setHttpTransferTimeout(5);
         mAiMixASREngine.setUseConf(true);
-//        mAiMixASREngine.setVersion("1.0.4"); //设置资源的版本号
         mAiMixASREngine.setNoSpeechTimeOut(10 * 1000);
         mAiMixASREngine.setMaxSpeechTimeS(20);
-//        mAiMixASREngine.setDeviceId(Util.getIMEI(this));
         mAiMixASREngine.setCloudVadEnable(false);
-//        if(this.getExternalCacheDir() != null) {
-//        	mAiMixASREngine.setUploadEnable(true);//设置上传音频使能
-//        	mAiMixASREngine.setTmpDir(this.getExternalCacheDir().getAbsolutePath());//设置上传的音频保存在本地的目录
-//        }
         mAiMixASREngine.init(this, new RobotAIASRListener(), AppKey.APPKEY, AppKey.SECRETKEY);
         mAiMixASREngine.setUseCloud(true);//该方法必须在init之后
-//        mAiMixASREngine.setUserId("AISPEECH"); //填公司名字
         mAiMixASREngine.setCoreType("cn.sds"); //cn.sds为云端对话服务，cn.dlg.ita为云端语义服务，
-//          默认为云端语义,想要访问对话服务时，才设置为cn.sds，否则不用设置
+        //默认为云端语义,想要访问对话服务时，才设置为cn.sds，否则不用设置
     }
 
     /**
@@ -931,10 +952,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
             asrInitStatus = staus;
             if (staus == AIConstant.OPT_SUCCESS) {
                 if (isDebugLog) Log.e(TAG, "mAiMixASREngine 初始化成功");
-//                mAiMixASREngine.start();
             } else {
                 if (isDebugLog) Log.e(TAG, "mAiMixASREngine 初始化失败");
-//                mAiMixASREngine.init(mContext, new RobotAIASRListener(), AppKey.APPKEY, AppKey.SECRETKEY);
                 mHandler.sendEmptyMessageDelayed(4, 3000);
             }
         }
@@ -1037,18 +1056,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         }
 
         @Override
-        public void onRecorderReleased() {
-            if (isDebugLog) Log.e(TAG, "RobotAIASRListener onRecorderReleased...");
-        }
-
-        @Override
-        public void onBufferReceived(byte[] bytes) {
+        public void onBufferReceived(byte[] bytes, int i) {
             if (isDebugLog) Log.i(TAG, "RobotAIASRListener onBufferReceived...");
-        }
-
-        @Override
-        public void onNotOneShot() {
-            if (isDebugLog) Log.e(TAG, "RobotAIASRListener onNotOneShot...");
         }
     }
 
@@ -1116,9 +1125,9 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         }
         String input = result.optString("input");
         String output = sdsJsonObj.optString("output");
-        if (!TextUtils.isEmpty(input) && !TextUtils.isEmpty(output)){
-            postSpeechToNet(input, domain, 1);
-            postSpeechToNet(output, domain, 0);
+        if (!TextUtils.isEmpty(input) && !TextUtils.isEmpty(output)) {
+            //postSpeechToNet(input, domain, 1);
+            //postSpeechToNet(output, domain, 0);
         }
 
         if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
@@ -1712,15 +1721,15 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                         mAiMixASREngine.stopRecording();
                         mAiMixASREngine.destroy();
                         mHandler.removeMessages(6);
-                        mAiLocalWakeupDnnEngine.stop();
-                        mAiLocalWakeupDnnEngine.destroy();
+                        mAILocalSignalAndWakeupEngine.stop();
+                        mAILocalSignalAndWakeupEngine.destroy();
                     }
                 } else {
                     if (isStoped && isAuthed) {
                         if (isDebugLog) Log.e(TAG, "检测到需要开启唤醒引擎");
                         isStoped = false;
                         initAiMixASREngine();
-                        initWakeupDnnEngine();
+                        initWakeupEngine();
                     }
                 }
             }
@@ -1820,13 +1829,20 @@ public class SpeechService extends Service implements MPOnCompletionListener {
     public void onDestroy() {
         super.onDestroy();
         isInited = false;
+        if (iSteeringService != null) {
+            try {
+                iSteeringService.closeDev();
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
         if (mAiAuthEngine != null) {
             mAiAuthEngine.destroy();
             mAiAuthEngine = null;
         }
-        if (mAiLocalWakeupDnnEngine != null) {
-            mAiLocalWakeupDnnEngine.destroy();
-            mAiLocalWakeupDnnEngine = null;
+        if (mAILocalSignalAndWakeupEngine != null) {
+            mAILocalSignalAndWakeupEngine.destroy();
+            mAILocalSignalAndWakeupEngine = null;
         }
         if (mRobotReceiver != null) {
             unregisterReceiver(mRobotReceiver);

@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/RobotSpeech.iml" filepath="$PROJECT_DIR$/RobotSpeech.iml" />
+      <module fileurl="file://$PROJECT_DIR$/RobotSpeech-x9.iml" filepath="$PROJECT_DIR$/RobotSpeech-x9.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
     </modules>
   </component>

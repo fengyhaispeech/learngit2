@@ -1,5 +1,6 @@
 package com.yihengke.robotspeech.utils;
 
+import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.app.Instrumentation;
 import android.content.ComponentName;
@@ -10,6 +11,7 @@ import android.view.KeyEvent;
 
 import com.yihengke.robotspeech.activity.SdsActivity;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 
@@ -164,6 +166,7 @@ public class Util {
     }
 
     //SN号custom
+    @SuppressLint("PrivateApi")
     public static String getSerialNumberCustom() {
         String serial = null;
         try {
@@ -174,5 +177,19 @@ public class Util {
             e.printStackTrace();
         }
         return serial;
+    }
+
+    @SuppressLint("PrivateApi")
+    public static Object getServerService() {
+        Class<?> tempClazz = null;
+        try {
+            tempClazz = Class.forName("android.os.ServiceManager");
+            Method method = tempClazz.getMethod("getService", String.class);
+            return method.invoke(null, "steering");
+        } catch (ClassNotFoundException | NoSuchMethodException |
+                InvocationTargetException | IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }

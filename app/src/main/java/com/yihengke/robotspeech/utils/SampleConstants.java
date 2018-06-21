@@ -5,7 +5,7 @@ public class SampleConstants {
     /**
      * VAD资源
      */
-    public static String vad_res = "vad_aihome_v0.6.bin";
+    public static String vad_res = "vad_aihome_v0.7.bin";
 
     /**
      * AEC资源设置
@@ -15,21 +15,20 @@ public class SampleConstants {
     /**
      * 识别相关资源
      */
-    public static String ebnfc_res = "ebnfc.aihome.0.3.0.bin";
-    public static String ebnfr_res = "ebnfr.aihome.0.3.0.bin";
-    public static String local_asr_net_bin = "asr.net.bin";
+    public static String ebnfc_res = "ebnfc.aicar.1.2.0.bin";
+    public static String ebnfr_res = "ebnfr.aicar.1.2.0.bin";
 
     /**
      * 唤醒资源文件
      */
-    public static String res_wake = "nihaoluqiya_xiaolu.bin";
+    public static String BEAMFORMING_CFG = "UDA_asr_chan2-2-mic2_30mm_20180323.bin";
+    public static String WAKEUP_RES_BIN = "wakeup_aifar_comm_20180104.bin";
 
     /**
      * 合成资源文件
      */
     public static String tts_res = "qianranc_common_param_ce_local.v2.018.bin";
     public static String tts_dict = "aitts_sent_dict_v3.20.db";
-
 
     /**
      * 服务器资源
