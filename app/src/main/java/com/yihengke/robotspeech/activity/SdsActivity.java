@@ -116,7 +116,7 @@ public class SdsActivity extends AppCompatActivity {
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;
             case coolAnim:
-                Glide.with(mContext).asGif().load("file:///android_asset/coolAnim.gif").into(imageAnim);
+                Glide.with(mContext).asGif().load("file:///android_asset/naughtyAnim.gif").into(imageAnim);
                 myHandler.removeMessages(animWhat);
                 myHandler.sendEmptyMessageDelayed(animWhat, animTime);
                 break;

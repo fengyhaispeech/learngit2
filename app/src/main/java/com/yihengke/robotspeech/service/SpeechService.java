@@ -56,6 +56,7 @@ import com.yihengke.robotspeech.utils.MyConstants;
 import com.yihengke.robotspeech.utils.NetworkUtil;
 import com.yihengke.robotspeech.utils.RobotMediaPlayer;
 import com.yihengke.robotspeech.utils.SampleConstants;
+import com.yihengke.robotspeech.utils.SteeringUtil;
 import com.yihengke.robotspeech.utils.TypefaceUtil;
 import com.yihengke.robotspeech.utils.Util;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
@@ -183,7 +184,7 @@ public class SpeechService extends Service implements MPOnCompletionListener {
      * 初始化舵机
      */
     private void initSteering() {
-        iSteeringService = ISteeringService.Stub.asInterface((IBinder) Util.getServerService());
+        iSteeringService = SteeringUtil.getInstance();
         if (iSteeringService != null) {
             try {
                 int temp = iSteeringService.openDev();
@@ -629,8 +630,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         mAILocalSignalAndWakeupEngine.disableAec();
         mAILocalSignalAndWakeupEngine.setBeamformingCfg(SampleConstants.BEAMFORMING_CFG);
         mAILocalSignalAndWakeupEngine.setResBin(SampleConstants.WAKEUP_RES_BIN);
-        mAILocalSignalAndWakeupEngine.setWords(new String[]{"ni hao xiao le"});
-        mAILocalSignalAndWakeupEngine.setThreshold(new float[]{0.24f});
+        mAILocalSignalAndWakeupEngine.setWords(new String[]{"ni hao xiao lu", "ni hao lu qi ya"});
+        mAILocalSignalAndWakeupEngine.setThreshold(new float[]{0.24f, 0.24f});
         mAILocalSignalAndWakeupEngine.setMajors(new int[]{1});
         //mAILocalSignalAndWakeupEngine.setWakeupCfg(SampleConstants.WAKEUP_CFG);
         mAILocalSignalAndWakeupEngine.init(getApplicationContext(), new RobotAILocalSignalAndWakeupListener()
@@ -707,7 +708,15 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                 i = 1;
             if (iSteeringService != null) {
                 try {
-                    iSteeringService.rotate(i, i * 10);
+                    int time = 10;
+                    int currentPosition = iSteeringService.getPosition();
+                    if (currentPosition > i) {
+                        time = currentPosition - i;
+                        iSteeringService.rotate(i, time * 10);
+                    } else if (currentPosition < i) {
+                        time = i - currentPosition;
+                        iSteeringService.rotate(i, time * 10);
+                    }
                 } catch (RemoteException e) {
                     e.printStackTrace();
                 }
@@ -1126,8 +1135,8 @@ public class SpeechService extends Service implements MPOnCompletionListener {
         String input = result.optString("input");
         String output = sdsJsonObj.optString("output");
         if (!TextUtils.isEmpty(input) && !TextUtils.isEmpty(output)) {
-            //postSpeechToNet(input, domain, 1);
-            //postSpeechToNet(output, domain, 0);
+            postSpeechToNet(input, domain, 1);
+            postSpeechToNet(output, domain, 0);
         }
 
         if (domain.equals("netfm") || domain.equals("story") || domain.equals("music") || domain.equals("poetry")) {
@@ -1811,14 +1820,14 @@ public class SpeechService extends Service implements MPOnCompletionListener {
                     .execute(new StringCallback() {
                         @Override
                         public void onSuccess(Response<String> response) {
-                            String str = response.body().toString();
+                            String str = response.body();
                             if (isDebugLog) Log.i(TAG, "OKGO " + str);
                         }
 
                         @Override
                         public void onError(Response<String> response) {
                             super.onError(response);
-                            String str = response.body().toString();
+                            String str = response.body();
                             if (isDebugLog) Log.i(TAG, "OKGO " + str);
                         }
                     });

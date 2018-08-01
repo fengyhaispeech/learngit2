@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <array name="dance_anim">
+        <item>@mipmap/dance_0</item>
+        <item>@mipmap/dance_1</item>
+        <item>@mipmap/dance_2</item>
+        <item>@mipmap/dance_3</item>
+    </array>
+</resources>

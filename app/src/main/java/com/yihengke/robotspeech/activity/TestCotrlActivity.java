@@ -1,15 +1,20 @@
 package com.yihengke.robotspeech.activity;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.ISteeringService;
 import android.os.Message;
+import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
 import com.yihengke.robotspeech.R;
+import com.yihengke.robotspeech.utils.SteeringUtil;
 import com.yihengke.robotspeech.utils.WriteDataUtils;
 
 /**
@@ -26,28 +31,45 @@ public class TestCotrlActivity extends AppCompatActivity implements View.OnClick
     private static int MOTOR_BACK = 3;
     private static int MOTOR_STOP = 4;
 
-    private Button btnForward, btnBack, btnLeft, btnRight, btnStop;
     private MyHandler myHandler;
+    private ISteeringService iSteeringService;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_test_ctrl);
         initViews();
+        //initSteering();
         myHandler = new MyHandler();
     }
 
     private void initViews() {
-        btnForward = (Button) findViewById(R.id.btn_forward);
-        btnBack = (Button) findViewById(R.id.btn_back);
-        btnLeft = (Button) findViewById(R.id.btn_left);
-        btnRight = (Button) findViewById(R.id.btn_right);
-        btnStop = (Button) findViewById(R.id.btn_stop);
+        Button btnForward = (Button) findViewById(R.id.btn_forward);
+        Button btnBack = (Button) findViewById(R.id.btn_back);
+        Button btnLeft = (Button) findViewById(R.id.btn_left);
+        Button btnRight = (Button) findViewById(R.id.btn_right);
+        Button btnStop = (Button) findViewById(R.id.btn_stop);
+        Button btnHeadLeft = (Button) findViewById(R.id.btn_head_left);
+        Button btnHeadRight = (Button) findViewById(R.id.btn_head_right);
         btnForward.setOnClickListener(this);
         btnBack.setOnClickListener(this);
         btnLeft.setOnClickListener(this);
         btnRight.setOnClickListener(this);
         btnStop.setOnClickListener(this);
+        btnHeadLeft.setOnClickListener(this);
+        btnHeadRight.setOnClickListener(this);
+    }
+
+    private void initSteering() {
+        iSteeringService = SteeringUtil.getInstance();
+        if (iSteeringService != null) {
+            try {
+                int temp = iSteeringService.openDev();
+                Log.e("robot test", "iSteeringService openDev: " + temp);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
@@ -77,11 +99,34 @@ public class TestCotrlActivity extends AppCompatActivity implements View.OnClick
                 myHandler.removeMessages(0);
                 WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
                 break;
+            case R.id.btn_head_left:
+                if (iSteeringService != null) {
+                    try {
+                        int targetPosition = iSteeringService.getPosition() - 15;
+                        if (targetPosition > 10)
+                            iSteeringService.rotate(targetPosition, 15 * 10);
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
+                }
+                break;
+            case R.id.btn_head_right:
+                if (iSteeringService != null) {
+                    try {
+                        int targetPosition = iSteeringService.getPosition() + 15;
+                        if (targetPosition < 170)
+                            iSteeringService.rotate(targetPosition, 15 * 10);
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
+                }
+                break;
             default:
                 break;
         }
     }
 
+    @SuppressLint("HandlerLeak")
     class MyHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
@@ -96,6 +141,13 @@ public class TestCotrlActivity extends AppCompatActivity implements View.OnClick
     public void onBackPressed() {
         super.onBackPressed();
         WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
+        if (iSteeringService != null) {
+            try {
+                iSteeringService.closeDev();
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
         startApp("com.DeviceTest");
     }
 
@@ -103,6 +155,13 @@ public class TestCotrlActivity extends AppCompatActivity implements View.OnClick
     protected void onDestroy() {
         super.onDestroy();
         WriteDataUtils.native_ear_light_control(0, MOTOR_STOP, 0);
+        if (iSteeringService != null) {
+            try {
+                iSteeringService.closeDev();
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 

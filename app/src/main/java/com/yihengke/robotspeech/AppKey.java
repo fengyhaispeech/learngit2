@@ -6,6 +6,7 @@ package com.yihengke.robotspeech;
 //TODO 修改完毕后去除
 public final class AppKey {
 
-    public static final String APPKEY = "15236152494583f6";// 测试激活码用的appkey
-    public static final String SECRETKEY = "b0e2762804f5c96ecba5f5fb14bffeb5";//添加您的SECRETKEY"
+    // X9--账户
+    public static final String APPKEY = "1532917606458488";// 测试激活码用的appkey
+    public static final String SECRETKEY = "fc3e4d17ec0652a5334e4387bd7889b4";//添加您的SECRETKEY"
 }

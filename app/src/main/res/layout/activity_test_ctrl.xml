@@ -53,4 +53,29 @@
         android:text="停止"
         android:textColor="@color/colorPrimaryDark"
         android:textSize="30dp" />
+
+    <Button
+        android:id="@+id/btn_head_left"
+        android:layout_width="170dp"
+        android:layout_height="80dp"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="100dp"
+        android:layout_marginStart="150dp"
+        android:text="头部左转"
+        android:textColor="@color/colorPrimaryDark"
+        android:textSize="30dp"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/btn_head_right"
+        android:layout_width="170dp"
+        android:layout_height="80dp"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginBottom="100dp"
+        android:layout_marginEnd="150dp"
+        android:text="头部右转"
+        android:textColor="@color/colorPrimaryDark"
+        android:textSize="30dp"
+        android:visibility="gone" />
 </RelativeLayout>
